@@ -1,0 +1,75 @@
+name: Publish plugin documentation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - docs/**
+      - include/**
+      - ue4ss/foundation-manifest.json
+      - .github/workflows/publish-plugin-docs.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Validate published metadata
+        shell: bash
+        run: |
+          find docs/api -name '*.json' -print0 | xargs -0 jq empty
+          test "$(jq -r '.unbseMod.version' ue4ss/foundation-manifest.json)" = \
+               "$(jq -r '.unbseVersion' docs/api/v1/release.json)"
+          test "$(jq -r '.supportedGame.runtimeVersion' ue4ss/foundation-manifest.json)" = \
+               "$(jq -r '.supportedGame.version' docs/api/v1/release.json)"
+          test "$(jq -r '.supportedGame.executable' ue4ss/foundation-manifest.json)" = \
+               "$(jq -r '.supportedGame.executable' docs/api/v1/release.json)"
+          test "$(jq -r '.unbseMod.addonHost.maximumRegisteredAddons' ue4ss/foundation-manifest.json)" = \
+               "$(jq -r '.limits.registeredAddons' docs/api/v1/interfaces.json)"
+          test "$(jq -r '.unbseMod.scriptService.maximumFunctions' ue4ss/foundation-manifest.json)" = \
+               "$(jq -r '.limits.scriptFunctions' docs/api/v1/interfaces.json)"
+
+      - name: Assemble documentation site
+        shell: bash
+        run: |
+          mkdir -p _site/api/v1/headers
+          cp -R docs/. _site/
+          cp \
+            include/UNBSEAddonHostV1.h \
+            include/UNBSEMessagingV1.h \
+            include/UNBSEScriptServiceV1.h \
+            include/UNBSERuntimeInfoV1.h \
+            include/UNBSERelocationV1.h \
+            _site/api/v1/headers/
+
+      - name: Upload documentation site
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

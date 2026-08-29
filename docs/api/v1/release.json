@@ -1,0 +1,20 @@
+{
+  "unbseVersion": "0.11.0-rc.1",
+  "releaseChannel": "release-candidate",
+  "supportedGame": {
+    "name": "Oblivion Remastered",
+    "store": "Steam",
+    "executable": "OblivionRemastered-Win64-Shipping.exe",
+    "version": "1.512.105.0",
+    "olderVersionsSupported": false
+  },
+  "runtime": {
+    "ue4ssRequired": true,
+    "ue4ssDistribution": "bundled pinned runtime"
+  },
+  "compatibility": {
+    "nativePlugins": "plugin-by-plugin",
+    "obse64Plugins": "plugin-by-plugin",
+    "policy": "report-and-attempt"
+  }
+}

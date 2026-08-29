@@ -1,0 +1,194 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "UNBSE Plugin Documentation API",
+    "version": "1.0.0",
+    "description": "Read-only documentation and compatibility metadata for the public UNBSE plugin SDK."
+  },
+  "servers": [
+    {
+      "url": "https://lorexvalkin.github.io/UNBSE",
+      "description": "Published documentation"
+    }
+  ],
+  "paths": {
+    "/api/index.json": {
+      "get": {
+        "summary": "Discover available documentation API versions",
+        "operationId": "getApiVersions",
+        "responses": {
+          "200": {
+            "description": "API discovery document",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Discovery"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/index.json": {
+      "get": {
+        "summary": "List version 1 resources",
+        "operationId": "getV1Catalog",
+        "responses": {
+          "200": {
+            "description": "Version 1 resource catalog",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/release.json": {
+      "get": {
+        "summary": "Get current release and compatibility metadata",
+        "operationId": "getCurrentRelease",
+        "responses": {
+          "200": {
+            "description": "Current release metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Release"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/interfaces.json": {
+      "get": {
+        "summary": "List public SDK interfaces and limits",
+        "operationId": "getInterfaces",
+        "responses": {
+          "200": {
+            "description": "SDK interface catalog",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/plugin-guide.json": {
+      "get": {
+        "summary": "Get the plugin development path",
+        "operationId": "getPluginGuide",
+        "responses": {
+          "200": {
+            "description": "Ordered plugin development steps",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/headers/index.json": {
+      "get": {
+        "summary": "List downloadable public SDK headers",
+        "operationId": "getSdkHeaders",
+        "responses": {
+          "200": {
+            "description": "SDK header catalog",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/headers/{headerName}": {
+      "get": {
+        "summary": "Download a public SDK header",
+        "operationId": "getSdkHeader",
+        "parameters": [
+          {
+            "name": "headerName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "UNBSEAddonHostV1.h",
+                "UNBSEMessagingV1.h",
+                "UNBSEScriptServiceV1.h",
+                "UNBSERuntimeInfoV1.h",
+                "UNBSERelocationV1.h"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "C ABI header",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Header not found"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Discovery": {
+        "type": "object",
+        "required": ["name", "currentVersion", "versions"],
+        "properties": {
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "currentVersion": { "type": "string" },
+          "versions": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "documentation": { "type": "string" },
+          "repository": { "type": "string", "format": "uri" }
+        }
+      },
+      "Release": {
+        "type": "object",
+        "required": ["unbseVersion", "releaseChannel", "supportedGame", "compatibility"],
+        "properties": {
+          "unbseVersion": { "type": "string" },
+          "releaseChannel": { "type": "string" },
+          "supportedGame": { "type": "object" },
+          "runtime": { "type": "object" },
+          "compatibility": { "type": "object" }
+        }
+      }
+    }
+  }
+}

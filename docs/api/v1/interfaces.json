@@ -1,0 +1,56 @@
+{
+  "sdkVersion": "v1",
+  "platform": "Windows x64",
+  "callingConvention": "UNBSE_SCRIPT_CALL",
+  "interfaces": [
+    {
+      "name": "Add-on host",
+      "abiVersion": 1,
+      "header": "headers/UNBSEAddonHostV1.h",
+      "source": "https://github.com/LorexValkin/UNBSE/blob/main/include/UNBSEAddonHostV1.h",
+      "queryExport": "UNBSE_QueryAddonHostV1",
+      "purpose": "Register add-ons, declare effects and capabilities, own resources, and retire cleanly."
+    },
+    {
+      "name": "Messaging",
+      "abiVersion": 1,
+      "header": "headers/UNBSEMessagingV1.h",
+      "source": "https://github.com/LorexValkin/UNBSE/blob/main/include/UNBSEMessagingV1.h",
+      "queryExport": "UNBSE_QueryMessagingV1",
+      "purpose": "Register in-process listeners and dispatch bounded synchronous messages."
+    },
+    {
+      "name": "Script service",
+      "abiVersion": 1,
+      "header": "headers/UNBSEScriptServiceV1.h",
+      "source": "https://github.com/LorexValkin/UNBSE/blob/main/include/UNBSEScriptServiceV1.h",
+      "queryExport": "UNBSE_QueryScriptServiceV1",
+      "purpose": "Register namespaced native functions for supported script runtimes."
+    },
+    {
+      "name": "Runtime information",
+      "abiVersion": 1,
+      "header": "headers/UNBSERuntimeInfoV1.h",
+      "source": "https://github.com/LorexValkin/UNBSE/blob/main/include/UNBSERuntimeInfoV1.h",
+      "queryExport": "UNBSE_QueryRuntimeInfoV1",
+      "purpose": "Read the loaded executable, platform, and foundation identity."
+    },
+    {
+      "name": "Relocation",
+      "abiVersion": 1,
+      "header": "headers/UNBSERelocationV1.h",
+      "source": "https://github.com/LorexValkin/UNBSE/blob/main/include/UNBSERelocationV1.h",
+      "queryExport": "UNBSE_QueryRelocationV1",
+      "purpose": "Resolve an executable-relative address after ownership and bounds checks."
+    }
+  ],
+  "limits": {
+    "registeredAddons": 32,
+    "messageListeners": 128,
+    "messageBytes": 1048576,
+    "scriptFunctions": 64,
+    "scriptFunctionsPerOwner": 16,
+    "scriptArguments": 8,
+    "defaultScriptDeadlineMs": 50
+  }
+}

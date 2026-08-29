@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Build native plugins for the Unblivion Script Extender.">
+  <title>UNBSE Plugin Development</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="./">UNBSE</a>
+    <nav aria-label="Primary navigation">
+      <a href="plugin-development.html">Plugin guide</a>
+      <a href="api/v1/openapi.json">REST API</a>
+      <a href="https://github.com/LorexValkin/UNBSE">Source</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <p class="eyebrow">Unblivion Script Extender</p>
+      <h1>Build the plugin your mod needs.</h1>
+      <p class="lede">
+        UNBSE provides small, versioned native interfaces for add-on ownership,
+        messaging, script functions, runtime identity, and bounded address resolution.
+      </p>
+      <div class="actions">
+        <a class="button primary" href="plugin-development.html">Start building</a>
+        <a class="button" href="api/v1/index.json">Browse the API</a>
+      </div>
+    </section>
+
+    <section aria-labelledby="available-now">
+      <h2 id="available-now">Available now</h2>
+      <div class="cards">
+        <article>
+          <h3>Stable C ABI</h3>
+          <p>Build independently using five public headers with explicit structure sizes and ABI versions.</p>
+        </article>
+        <article>
+          <h3>Focused services</h3>
+          <p>Register an add-on, publish script functions, exchange messages, inspect the runtime, and resolve executable RVAs.</p>
+        </article>
+        <article>
+          <h3>Versioned documentation</h3>
+          <p>Human guidance and JSON resources live beside the implementation and advance with the public SDK.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="compatibility" aria-labelledby="current-target">
+      <h2 id="current-target">Current target</h2>
+      <p>
+        UNBSE <code>0.11.0-rc.1</code> targets the Steam executable
+        <code>OblivionRemastered-Win64-Shipping.exe</code> version
+        <code>1.512.105.0</code>. Native compatibility remains plugin-specific.
+      </p>
+    </section>
+  </main>
+
+  <footer>
+    <p>UNBSE is developed by the Unblivion Project.</p>
+  </footer>
+</body>
+</html>
