@@ -1,0 +1,21 @@
+# Generated build and package outputs
+/out/
+build*/
+*.exp
+*.ilk
+*.lib
+*.pdb
+
+# Test and proof material retained locally during the repository split
+/tests/
+/plugins/fixtures/
+/ue4ss/proof-mod/
+/ue4ss/tests/
+
+# Private research archive and unpublished release drafts
+/internal/
+/local/
+
+# Tool caches
+__pycache__/
+.pytest_cache/
