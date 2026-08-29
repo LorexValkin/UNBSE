@@ -1,0 +1,332 @@
+{
+    "schema":  "UNBSEUE4SSFoundation",
+    "schemaVersion":  1,
+    "foundationId":  "ue4ss-3.0.1-beta0-68dd45cb-unbse-patchset-v1-mod-0.11.0-rc.1",
+    "upstream":  {
+                     "repository":  "https://github.com/UE4SS-RE/RE-UE4SS.git",
+                     "commit":  "68dd45cb5630bd7745310c6630b19c14345176a2",
+                     "commitDate":  "2026-07-04T09:52:56-07:00",
+                     "displayVersion":  "3.0.1 Beta #0",
+                     "license":  "MIT",
+                     "licenseUrl":  "https://raw.githubusercontent.com/UE4SS-RE/RE-UE4SS/68dd45cb5630bd7745310c6630b19c14345176a2/LICENSE",
+                     "submodules":  [
+                                        {
+                                            "path":  "deps/first/Unreal",
+                                            "commit":  "b2e876da82b17254c04304746341c8fde0ddb37c"
+                                        },
+                                        {
+                                            "path":  "deps/first/patternsleuth",
+                                            "commit":  "da8bfe4c5a464be0ef225c2c9a6ccaa2d9284018"
+                                        }
+                                    ]
+                 },
+    "sourceDistribution":  {
+                               "localArchive":  "out/foundation/UE4SS_v3.0.1-1008-g68dd45cb.zip",
+                               "downloadUrl":  "https://github.com/UE4SS-RE/RE-UE4SS/releases/download/experimental/UE4SS_v3.0.1-1008-g68dd45cb.zip",
+                               "archiveSha256":  "EF0B1AC2BA4CBD5CF67FFECB4E8686936C378268B741AA5AC2B8CD0CE82D3D5A",
+                               "archiveBytes":  7181559
+                           },
+    "requiredRuntimeArtifacts":  [
+                                     {
+                                         "relativePath":  "dwmapi.dll",
+                                         "sha256":  "02822565CF0E4CC607BADB6F17F3F6C4D37A4B6ED05849D98CD18C6C685183B5",
+                                         "bytes":  71680
+                                     },
+                                     {
+                                         "relativePath":  "ue4ss/UE4SS.dll",
+                                         "sha256":  "041975EEEEEC83CB0270558122BA89586C4BDE5D0DB9C5728B16406B4FAAD7B3",
+                                         "bytes":  16519168
+                                     },
+                                     {
+                                         "relativePath":  "ue4ss/UE4SS-settings.ini",
+                                         "sha256":  "4E9BBDB5F50A6DCAFFE4046EDB2D78669255C7ADC079AF98E8D3E364C3593E74",
+                                         "bytes":  7848
+                                     },
+                                     {
+                                         "relativePath":  "ue4ss/LICENSE",
+                                         "sha256":  "99E1D8F8B7CB68E8B2313380AE3B0C8115E39DFBC443FCF21FD67AB74CE1D57E",
+                                         "bytes":  1085
+                                     }
+                                 ],
+    "supportedGame":  {
+                          "distribution":  "Steam",
+                          "runtimeVersion":  "1.512.105.0",
+                          "compatibilityPolicy":  "report-and-attempt",
+                          "executable":  "OblivionRemastered-Win64-Shipping.exe",
+                          "sha256":  "B7BE7E6EBE9424F6FDF274F5E7A59372DE103E043AB5B66C60E021C0C89DF457",
+                          "textSha256":  "B83268DFAA916355846BB5AEBD9F6AE43835CFE4F6F32ADAFF309B42F6875ACE"
+                      },
+    "requiredSettings":  {
+                             "General.EnableHotReloadSystem":  "0",
+                             "General.UseCache":  "1",
+                             "General.InvalidateCacheIfDLLDiffers":  "1",
+                             "General.bUseUObjectArrayCache":  "false",
+                             "General.DefaultExecuteInGameThreadMethod":  "EngineTick",
+                             "ObjectDumper.LoadAllAssetsBeforeDumpingObjects":  "0",
+                             "CXXHeaderGenerator.LoadAllAssetsBeforeGeneratingCXXHeaders":  "0",
+                             "Hooks.HookEngineTick":  "1",
+                             "Hooks.EngineTickResolveMethod":  "Scan",
+                             "Hooks.HookGameViewportClientTick":  "1",
+                             "Hooks.HookUObjectProcessEvent":  "1",
+                             "Hooks.HookProcessInternal":  "1",
+                             "Hooks.HookProcessLocalScriptFunction":  "1",
+                             "Hooks.HookLoadMap":  "1"
+                         },
+    "patchSet":  {
+                     "id":  "unbse-ue4ss-v1",
+                     "baseCommit":  "68dd45cb5630bd7745310c6630b19c14345176a2",
+                     "directory":  "ue4ss/patches",
+                     "status":  "production-release-reproducible-runtime",
+                     "patches":  [
+                                     {
+                                         "relativePath":  "ue4ss/patches/0001-add-unbse-external-mod.patch",
+                                         "sha256":  "7D0A5D87D7E48F8DF8CA6CA5E9284FB9CE6C0CA43ED901DC96159B63B6AF9F98",
+                                         "purpose":  "Build UNBSE inside the pinned UE4SS graph so compiler configuration and CRT match exactly.",
+                                         "expectedChangedPaths":  [
+                                                                      "CMakeLists.txt"
+                                                                  ]
+                                     },
+                                     {
+                                         "relativePath":  "ue4ss/patches/0002-fix-msvc-special-invalid-ptr-constexpr.patch",
+                                         "sha256":  "CA5C07FA79AD6175CA2ECB6E31EC1E695D624F3F3B703991A7F40676D8EE5D15",
+                                         "purpose":  "Apply the same non-constexpr runtime sentinel form present in later upstream source so pinned UE4SS compiles with MSVC 14.44.",
+                                         "expectedChangedPaths":  [
+                                                                      "deps/first/LuaMadeSimple/include/LuaMadeSimple/LuaObject.hpp"
+                                                                  ]
+                                     },
+                                     {
+                                         "relativePath":  "ue4ss/patches/0004-log-cpp-mod-lifecycle-boundary.patch",
+                                         "sha256":  "C74E4F3E53EBAADC41089619CB9F0FFD7263CEAF661C337E5B48328CCA736DC4",
+                                         "purpose":  "Log native mod lifecycle boundaries so startup failures identify the responsible module.",
+                                         "expectedChangedPaths":  [
+                                                                      "UE4SS/src/Mod/CppMod.cpp"
+                                                                  ]
+                                     },
+                                     {
+                                         "relativePath":  "ue4ss/patches/0005-make-shipping-ue4ss-reproducible.patch",
+                                         "sha256":  "A47B44F95F2E78975766C0EBA2A3EECF07C8DBABF6BC3B0895C3BF2F039DA756",
+                                         "purpose":  "Link the Shipping UE4SS host with /Brepro so identical pinned source, toolchain, and configuration produce a byte-identical runtime DLL while preserving a build-specific PDB for crash diagnosis.",
+                                         "expectedChangedPaths":  [
+                                                                      "UE4SS/CMakeLists.txt"
+                                                                  ]
+                                     }
+                                 ]
+                 },
+    "unbseMod":  {
+                     "name":  "UNBSE",
+                     "version":  "0.11.0-rc.1",
+                     "target":  "UNBSEMod",
+                     "buildConfiguration":  "Game__Shipping__Win64",
+                     "packageDll":  "ue4ss/Mods/UNBSE/dlls/main.dll",
+                     "requiredExports":  [
+                                             "UNBSE_QueryAddonHostV1",
+                                             "UNBSE_QueryMessagingV1",
+                                             "UNBSE_QueryRelocationV1",
+                                             "UNBSE_QueryRuntimeInfoV1",
+                                             "UNBSE_QueryScriptServiceV1",
+                                             "start_mod",
+                                             "uninstall_mod"
+                                         ],
+                     "sourceFiles":  [
+                                         {
+                                             "relativePath":  "include/UNBSEAddonHostV1.h",
+                                             "sha256":  "FF8EC97D8D3D48A84A1E113BD4C448338C86EBCF33654F65B8A26D8BE595E23C"
+                                         },
+                                         {
+                                             "relativePath":  "include/UNBSEMessagingV1.h",
+                                             "sha256":  "C274F4FE915C3C213D16E6EF9ABC1404D435666557C733137F33E79911553980"
+                                         },
+                                         {
+                                             "relativePath":  "include/UNBSERelocationV1.h",
+                                             "sha256":  "745070D2F15A64E86624AC3B925429BD83BAD6E6A1CAFF6E1E3BC922935E71C9"
+                                         },
+                                         {
+                                             "relativePath":  "include/UNBSERuntimeInfoV1.h",
+                                             "sha256":  "19339FA563E94A1A38B6D9E1B3F7B2CC61B9BB4AC09459BEFDAD083F4C2B59FB"
+                                         },
+                                         {
+                                             "relativePath":  "include/UNBSEScriptServiceV1.h",
+                                             "sha256":  "A590CD61F2FA759E15C2913827F88D4C8B3C826B1679D700D1DE7F048841DE60"
+                                         },
+                                         {
+                                             "relativePath":  "ue4ss/addons/README.md",
+                                             "sha256":  "EB7FA2B794BB3437F06AE7D7CDE6DD875DDE1C0AD9196D8182C1AE071E727EBF"
+                                         },
+                                         {
+                                             "relativePath":  "ue4ss/mod/UNBSE/CMakeLists.txt",
+                                             "sha256":  "273E1D66B4143CF9FC45C064E167C0EEBF789525739A9CDD328582A297105CA7"
+                                         },
+                                         {
+                                             "relativePath":  "ue4ss/mod/UNBSE/include/AddonRegistry.hpp",
+                                             "sha256":  "531D2465E71602A4284CBAD08536D542F5432E18D7F37DE12EAB052A60C082BF"
+                                         },
+                                         {
+                                             "relativePath":  "ue4ss/mod/UNBSE/include/CoreLuaBinding.hpp",
+                                             "sha256":  "D4A8A48A2E5CE106DBA23DC84109B45B44A2E3ACBE64624E4A7C83353B6CC741"
+                                         },
+                                         {
+                                             "relativePath":  "ue4ss/mod/UNBSE/include/ScriptServiceRegistry.hpp",
+                                             "sha256":  "7C0C0FD10B2354000E039F56E1DF6A5D0FE6ECD20DCA886A4C93ACFE6CB4F594"
+                                         },
+                                         {
+                                             "relativePath":  "ue4ss/mod/UNBSE/include/UNBSECoreMod.hpp",
+                                             "sha256":  "60412C4896D66BC92EC33A74A3EFFF7524FFB7B3F855A1E93FC3B4C28518DFDC"
+                                         },
+                                         {
+                                             "relativePath":  "ue4ss/mod/UNBSE/src/AddonRegistry.cpp",
+                                             "sha256":  "115D91D22AEFC1E2097997F04D7FE61D698B62905BE54DBD7B25B0458BA0A19E"
+                                         },
+                                         {
+                                             "relativePath":  "ue4ss/mod/UNBSE/src/core_dllmain.cpp",
+                                             "sha256":  "2BF0BFBA4BF17C1A93FB1A48930D46EB87BA697A2D494DB6AA863BC866FA9478"
+                                         },
+                                         {
+                                             "relativePath":  "ue4ss/mod/UNBSE/src/CoreLuaBinding.cpp",
+                                             "sha256":  "322A9B80EF2198DBAEDF3C6C9EA8CC33FC7CC5138576B8830A681FDCCA613B06"
+                                         },
+                                         {
+                                             "relativePath":  "ue4ss/mod/UNBSE/src/ScriptServiceRegistry.cpp",
+                                             "sha256":  "83332A04893791E2CD40FC430710028FD453E055E01CAB61AFA9A844F791F58C"
+                                         },
+                                         {
+                                             "relativePath":  "ue4ss/mod/UNBSE/src/UNBSECoreMod.cpp",
+                                             "sha256":  "BBE40F18C8126CE9BD702B39739FFC38F3DF28A2C338C2B18D0184DD6AB41D2E"
+                                         },
+                                         {
+                                             "relativePath":  "ue4ss/scripts/Build-UNBSEUE4SSMod.ps1",
+                                             "sha256":  "04A63FA0D7FEF13906930C13955CE2EAE985800D01056C94BF33392D773F7AA2"
+                                         },
+                                         {
+                                             "relativePath":  "ue4ss/scripts/Install-UNBSEUE4SSMod.ps1",
+                                             "sha256":  "1CC2FA0F8A8D64AC3D4F9E90A44C7D019E3F8D1E12CED40834B74D09CD58704B"
+                                         },
+                                         {
+                                             "relativePath":  "ue4ss/scripts/Package-UNBSERelease.ps1",
+                                             "sha256":  "5A8A80C3F0F5C11688474771D6307D8D1727889E04B092F758AE13FE4AB0F1ED"
+                                         },
+                                         {
+                                             "relativePath":  "ue4ss/scripts/Set-UNBSECoreManifestBoundary.ps1",
+                                             "sha256":  "F698600D3AE68D630AD3A009603B3033294BE3B977D304951889FB065EB3F65F"
+                                         },
+                                         {
+                                             "relativePath":  "ue4ss/scripts/UNBSEUE4SSFoundation.psm1",
+                                             "sha256":  "D3D35095B44541EF2DDF193BD77D7E0035DA7FB4E23B30F63949A10B6B20198F"
+                                         },
+                                         {
+                                             "relativePath":  "ue4ss/scripts/UNBSEUE4SSMod.psm1",
+                                             "sha256":  "15369696743F6D16995CC33BB485B9033097D5B6B154DEA9253BCA01A70A2E0D"
+                                         },
+                                         {
+                                             "relativePath":  "ue4ss/scripts/Update-UNBSESourceFilePins.ps1",
+                                             "sha256":  "C1C0C896D40F1490FCF3CDDAE4B1574DAE356EA7090A5F60FD968113092092EF"
+                                         }
+                                     ],
+                     "addonHost":  {
+                                       "abiVersion":  1,
+                                       "messagingAbiVersion":  1,
+                                       "runtimeInfoAbiVersion":  1,
+                                       "relocationAbiVersion":  1,
+                                       "compatibilityPolicy":  "report-and-attempt",
+                                       "maximumRegisteredAddons":  32,
+                                       "maximumMessageListeners":  128
+                                   },
+                     "scriptService":  {
+                                           "abiVersion":  1,
+                                           "backend":  "ue4ss_lua_v1",
+                                           "luaNamespace":  "UNBSE",
+                                           "maximumFunctions":  64,
+                                           "maximumFunctionsPerOwner":  16,
+                                           "maximumArguments":  8,
+                                           "defaultDeadlineMilliseconds":  50,
+                                           "supportsReadOnlyFunctions":  true,
+                                           "supportsRuntimeWriteFunctions":  true,
+                                           "genericConsolePassthrough":  false,
+                                           "mcpOwned":  false
+                                       },
+                     "obse64Interop":  {
+                                           "name":  "UNBSEOBSE64Interop",
+                                           "version":  "0.1.0",
+                                           "target":  "UNBSEOBSE64Interop",
+                                           "buildConfiguration":  "Game__Shipping__Win64",
+                                           "sourceDirectory":  "ue4ss/mod/OBSE64Interop",
+                                           "packageDll":  "ue4ss/Mods/UNBSEOBSE64Interop/dlls/main.dll",
+                                           "enabledFile":  "ue4ss/Mods/UNBSEOBSE64Interop/enabled.txt",
+                                           "pluginDirectory":  "OBSE/Plugins",
+                                           "compatibilityPolicy":  "report-and-attempt",
+                                           "compatibilityClaim":  "unverified-attempt",
+                                           "requiredHostCapabilities":  [
+                                                                            "runtime-info-v1",
+                                                                            "relocation-v1"
+                                                                        ],
+                                           "declaredEffects":  [
+                                                                   "runtime-read",
+                                                                   "runtime-write",
+                                                                   "file-io",
+                                                                   "third-party-native-code-load"
+                                                               ],
+                                           "sourceFiles":  [
+                                                               {
+                                                                   "relativePath":  "ue4ss/mod/OBSE64Interop/CMakeLists.txt",
+                                                                   "sha256":  "C8B1104A5A2CA620C9E951C353DF0184B047B8A7F23821EA607BA87B5726EBB7"
+                                                               },
+                                                               {
+                                                                   "relativePath":  "ue4ss/mod/OBSE64Interop/include/OBSE64PluginABI.hpp",
+                                                                   "sha256":  "64009C2584C1E49944D2A2CA3BF3A84E1FCC5070FC490C86C31EA6A52797E7B0"
+                                                               },
+                                                               {
+                                                                   "relativePath":  "ue4ss/mod/OBSE64Interop/include/OBSE64PluginManager.hpp",
+                                                                   "sha256":  "1874B4C6ED45FAEFF9CC293EFED1D277EDCCDBA4BE45906F8F147D4AFBE4562E"
+                                                               },
+                                                               {
+                                                                   "relativePath":  "ue4ss/mod/OBSE64Interop/include/OBSE64PluginScanner.hpp",
+                                                                   "sha256":  "1B41B0A00995BCF39E12E91C7B6C4221D5856F91F9FB0234DD1D080C62C4680B"
+                                                               },
+                                                               {
+                                                                   "relativePath":  "ue4ss/mod/OBSE64Interop/src/dllmain.cpp",
+                                                                   "sha256":  "3B1E9F77B10A93FFB9DB9E298B6E1F521928BA21F2B2160445252DF1FE08DF01"
+                                                               },
+                                                               {
+                                                                   "relativePath":  "ue4ss/mod/OBSE64Interop/src/OBSE64PluginManager.cpp",
+                                                                   "sha256":  "72EE9734383405CACB4583D1EC8F316FFE2AAD5E9F2AC4F3DFA1857B666243DD"
+                                                               },
+                                                               {
+                                                                   "relativePath":  "ue4ss/mod/OBSE64Interop/src/OBSE64PluginScanner.cpp",
+                                                                   "sha256":  "DC3D004FBFE558497798821CB4C73782638F36730E8163C05638B1BC6D54F460"
+                                                               }
+                                                           ],
+                                           "provenance":  {
+                                                              "abiReferenceRepository":  "https://github.com/ianpatt/obse64",
+                                                              "abiReferenceCommit":  "09bdc6155032c19045feba876886465de0c71743",
+                                                              "abiReferenceFile":  "obse64/PluginAPI.h",
+                                                              "implementationPolicy":  "clean-room-no-upstream-implementation"
+                                                          }
+                                       },
+                     "packageBoundary":  {
+                                             "bundledProbes":  false,
+                                             "bundledMcp":  false,
+                                             "bundledGameFeatureAddons":  false,
+                                             "baseObse64Interop":  true,
+                                             "optionalAddonsDefaultEnabled":  false
+                                         },
+                     "buildGeneratedState":  {
+                                                 "patternsleuthCargoLock":  {
+                                                                                "relativePath":  "deps/first/patternsleuth_bind/Cargo.lock",
+                                                                                "baseWorkingTreeSha256":  "1E2A435879DAE44EF2CBB1E15F1AE4E6B487E6FF23A8C500D799E6EB23742156",
+                                                                                "resolvedWorkingTreeSha256":  "88C3718C03492CDC2650217A9D8BB2A8DBDECDBDE1B4EA79E3E529E838B49BBE",
+                                                                                "policy":  "Verify Cargo\u0027s exact build-time resolution, then restore the pinned working-tree bytes."
+                                                                            }
+                                             }
+                 },
+    "runtimePolicy":  {
+                          "ue4ssRequired":  true,
+                          "unblivionMcpRequired":  false,
+                          "gameThreadMethod":  "EngineTick",
+                          "fallbackMethod":  "none-until-separately-validated",
+                          "readOnlyQueriesFirst":  true,
+                          "maximumRequestFrameBytes":  65536,
+                          "maximumResponseFrameBytes":  8388608,
+                          "arbitraryExpressions":  false,
+                          "arbitraryAddresses":  false,
+                          "writes":  false
+                      }
+}
