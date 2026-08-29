@@ -1,0 +1,15 @@
+{
+  "name": "UNBSE Plugin Documentation API",
+  "description": "Versioned public metadata and documentation for developers building UNBSE plugins.",
+  "currentVersion": "v1",
+  "versions": [
+    {
+      "id": "v1",
+      "status": "current",
+      "catalog": "v1/index.json",
+      "openapi": "v1/openapi.json"
+    }
+  ],
+  "documentation": "../plugin-development.html",
+  "repository": "https://github.com/LorexValkin/UNBSE"
+}

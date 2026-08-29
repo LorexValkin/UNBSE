@@ -1,0 +1,11 @@
+{
+  "apiVersion": "v1",
+  "headers": [
+    "UNBSEAddonHostV1.h",
+    "UNBSEMessagingV1.h",
+    "UNBSEScriptServiceV1.h",
+    "UNBSERuntimeInfoV1.h",
+    "UNBSERelocationV1.h"
+  ],
+  "sourceDirectory": "https://github.com/LorexValkin/UNBSE/tree/main/include"
+}

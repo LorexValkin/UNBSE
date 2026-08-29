@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A concise guide to building native UNBSE plugins.">
+  <title>Build a UNBSE Plugin</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="./">UNBSE</a>
+    <nav aria-label="Primary navigation">
+      <a aria-current="page" href="plugin-development.html">Plugin guide</a>
+      <a href="api/v1/openapi.json">REST API</a>
+      <a href="https://github.com/LorexValkin/UNBSE">Source</a>
+    </nav>
+  </header>
+
+  <main class="guide">
+    <p class="eyebrow">Developer guide · SDK v1</p>
+    <h1>Build a native UNBSE plugin</h1>
+    <p class="lede">
+      A native add-on is a 64-bit Windows UE4SS C++ mod that registers with the
+      UNBSE host. The public boundary is a C ABI, so the add-on can be built and
+      released independently from UNBSE.
+    </p>
+
+    <aside>
+      <strong>Current runtime:</strong> UNBSE 0.11.0-rc.1 supports the Steam game
+      executable version 1.512.105.0 only. Check runtime identity before using
+      version-specific addresses or behavior.
+    </aside>
+
+    <h2>1. Include the SDK</h2>
+    <p>
+      Add the UNBSE <a href="api/v1/headers/UNBSEAddonHostV1.h">SDK headers</a>
+      to your project. Begin with <code>UNBSEAddonHostV1.h</code>; it also brings
+      in the script-service declarations. The remaining services are optional.
+    </p>
+
+    <table>
+      <thead>
+        <tr><th>Header</th><th>Use</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><a href="api/v1/headers/UNBSEAddonHostV1.h"><code>UNBSEAddonHostV1.h</code></a></td><td>Registration, capabilities, ownership, and retirement</td></tr>
+        <tr><td><a href="api/v1/headers/UNBSEMessagingV1.h"><code>UNBSEMessagingV1.h</code></a></td><td>In-process messages and lifecycle events</td></tr>
+        <tr><td><a href="api/v1/headers/UNBSEScriptServiceV1.h"><code>UNBSEScriptServiceV1.h</code></a></td><td>Native functions exposed to supported script runtimes</td></tr>
+        <tr><td><a href="api/v1/headers/UNBSERuntimeInfoV1.h"><code>UNBSERuntimeInfoV1.h</code></a></td><td>Loaded executable and foundation identity</td></tr>
+        <tr><td><a href="api/v1/headers/UNBSERelocationV1.h"><code>UNBSERelocationV1.h</code></a></td><td>Owner-checked executable RVA resolution</td></tr>
+      </tbody>
+    </table>
+
+    <h2>2. Find and register with the host</h2>
+    <p>
+      Locate <code>UNBSE_QueryAddonHostV1</code> among the modules already loaded
+      in the game process, request ABI version 1, then submit a descriptor. Use a
+      stable, namespaced add-on ID and declare every effect your add-on can perform.
+    </p>
+
+    <pre><code>#include &lt;UNBSEAddonHostV1.h&gt;
+#include &lt;cstdint&gt;
+#include &lt;cstring&gt;
+
+bool RegisterAddon(UNBSEQueryAddonHostV1Function query,
+                   UNBSEAddonHostV1&amp; host,
+                   std::uint32_t&amp; owner)
+{
+    host = {};
+    host.structSize = sizeof(host);
+    if (!query(UNBSE_ADDON_HOST_ABI_VERSION, &amp;host)) {
+        return false;
+    }
+
+    UNBSEAddonDescriptorV1 descriptor{};
+    descriptor.structSize = sizeof(descriptor);
+    descriptor.apiVersion = UNBSE_ADDON_HOST_ABI_VERSION;
+    descriptor.declaredEffects = UNBSE_ADDON_EFFECT_RUNTIME_READ;
+    descriptor.requiredHostCapabilities =
+        UNBSE_ADDON_HOST_CAPABILITY_RUNTIME_INFO_V1;
+    std::memcpy(descriptor.addonId, "example.weather", 16);
+    std::memcpy(descriptor.addonVersion, "1.0.0", 6);
+
+    UNBSEAddonRegistrationV1 registration{};
+    registration.structSize = sizeof(registration);
+    registration.apiVersion = UNBSE_ADDON_HOST_ABI_VERSION;
+    if (host.registerAddon(&amp;descriptor, &amp;registration) !=
+        UNBSE_ADDON_RESULT_OK) {
+        return false;
+    }
+
+    owner = registration.ownerHandle;
+    return true;
+}</code></pre>
+
+    <p>
+      Keep the host table and returned owner handle for the add-on lifetime. Check
+      <code>missingHostCapabilities</code> before using optional features.
+    </p>
+
+    <h2>3. Query only the services you use</h2>
+    <p>
+      Each service has its own query export and ABI version. Initialize
+      <code>structSize</code>, request the matching version, and verify returned
+      function pointers before calling them. Runtime-info and relocation queries
+      are independent exports; the add-on host provides the script-service query.
+    </p>
+
+    <h2>4. Retire cleanly</h2>
+    <p>
+      Stop new work, release listeners or callbacks owned by the add-on, then call
+      <code>host.retireAddon(owner, deadlineMs)</code>. Message payloads and script
+      call pointers are borrowed only for the synchronous call unless a header says
+      otherwise.
+    </p>
+
+    <h2>5. Package the add-on</h2>
+    <p>
+      Ship the DLL as an enabled UE4SS C++ mod under
+      <code>ue4ss/Mods/&lt;YourPlugin&gt;/dlls/main.dll</code>. Do not place a native
+      UNBSE add-on in <code>OBSE/Plugins</code>; that directory is for plugins using
+      the OBSE64 compatibility ABI. State the UNBSE and game versions you support.
+    </p>
+
+    <h2>Reference</h2>
+    <ul>
+      <li><a href="api/v1/interfaces.json">SDK interface catalog</a></li>
+      <li><a href="api/v1/release.json">Current release compatibility</a></li>
+      <li><a href="api/v1/openapi.json">OpenAPI 3.1 document</a></li>
+      <li><a href="https://github.com/LorexValkin/UNBSE/tree/main/ue4ss/mod/OBSE64Interop">In-tree native add-on implementation</a></li>
+    </ul>
+  </main>
+
+  <footer>
+    <p>Documentation version: SDK v1 · UNBSE 0.11.0-rc.1</p>
+  </footer>
+</body>
+</html>

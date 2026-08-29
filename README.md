@@ -5,6 +5,19 @@ provide a small, open native extension layer for mods: plugin loading, lifecycle
 events, messaging, runtime information, executable trampolines, and versioned SDK
 interfaces.
 
+## Build a plugin
+
+UNBSE is designed to be extended. Plugin developers can use the public,
+versioned C headers in [`include/`](include/) to register a native add-on and
+request only the runtime services they need.
+
+- [Plugin development guide](docs/plugin-development.html)
+- [Versioned documentation API](docs/api/index.json)
+- [Current SDK interface catalog](docs/api/v1/interfaces.json)
+
+The documentation is kept with the source and is published as a static website
+from `main`, so the guide and machine-readable API describe the shipped SDK.
+
 The `0.11.0-rc.1` release targets only the current Steam executable,
 `OblivionRemastered-Win64-Shipping.exe` version `1.512.105.0`. UNBSE includes its
 clean-room OBSE64 interoperability module and discovers compatible native plugins

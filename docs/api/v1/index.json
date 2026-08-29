@@ -1,0 +1,14 @@
+{
+  "name": "UNBSE Plugin Documentation API",
+  "apiVersion": "v1",
+  "status": "current",
+  "resources": {
+    "release": "release.json",
+    "interfaces": "interfaces.json",
+    "pluginGuide": "plugin-guide.json",
+    "openapi": "openapi.json",
+    "headers": "headers/index.json"
+  },
+  "humanDocumentation": "../../plugin-development.html",
+  "repository": "https://github.com/LorexValkin/UNBSE"
+}
