@@ -1,0 +1,15 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -94,0 +95,11 @@ endforeach()
++# UNBSE build overlay. Runtime behavior remains in the separately versioned
++# C++ mod; this keeps its CRT/configuration identical to the pinned UE4SS build.
++set(UNBSE_MOD_SOURCE_DIR "" CACHE PATH "Absolute path to the UNBSE UE4SS C++ mod source")
++if(UNBSE_MOD_SOURCE_DIR)
++    get_filename_component(UNBSE_MOD_SOURCE_DIR "${UNBSE_MOD_SOURCE_DIR}" ABSOLUTE)
++    if(NOT EXISTS "${UNBSE_MOD_SOURCE_DIR}/CMakeLists.txt")
++        message(FATAL_ERROR
++            "UNBSE_MOD_SOURCE_DIR does not contain the expected CMakeLists.txt: ${UNBSE_MOD_SOURCE_DIR}")
++    endif()
++    add_subdirectory("${UNBSE_MOD_SOURCE_DIR}" "${CMAKE_BINARY_DIR}/unbse-mod")
++endif()

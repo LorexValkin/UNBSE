@@ -1,0 +1,29 @@
+diff --git a/UE4SS/src/Mod/CppMod.cpp b/UE4SS/src/Mod/CppMod.cpp
+index 2d5f556..91e57db 100644
+--- a/UE4SS/src/Mod/CppMod.cpp
++++ b/UE4SS/src/Mod/CppMod.cpp
+@@ -68,8 +68,13 @@ namespace RC
+     {
+         try
+         {
++            Output::send(STR("[UE4SS.CppModLifecycle] event=start_mod phase=before mod='{}'\n"),
++                         m_mod_name);
+             m_mod = m_start_mod_func();
+             m_is_started = m_mod != nullptr;
++            Output::send(STR("[UE4SS.CppModLifecycle] event=start_mod phase=after mod='{}' started={}\n"),
++                         m_mod_name,
++                         m_is_started);
+         }
+         catch (std::exception& e)
+         {
+@@ -219,6 +224,10 @@ namespace RC
+     {
+         if (m_mod)
+         {
++            Output::send(STR("[UE4SS.CppModLifecycle] event=on_cpp_mods_loaded phase=before mod='{}'\n"),
++                         m_mod_name);
+             m_mod->on_cpp_mods_loaded();
++            Output::send(STR("[UE4SS.CppModLifecycle] event=on_cpp_mods_loaded phase=after mod='{}'\n"),
++                         m_mod_name);
+         }
+     }
