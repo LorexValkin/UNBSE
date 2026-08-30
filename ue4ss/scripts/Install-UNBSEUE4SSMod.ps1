@@ -155,14 +155,21 @@ try {
     if (-not $post.Success) {
         throw "Post-stage UNBSE audit failed: $($post.Errors -join '; ')"
     }
+    $coreDllArtifact = $pre.PackageManifest.artifacts | Where-Object {
+        [string]$_.relativePath -ceq [string]$post.PackageManifest.artifacts[0].relativePath
+    } | Select-Object -First 1
+    $interopDllArtifact = $pre.PackageManifest.artifacts | Where-Object {
+        [string]$_.relativePath -ceq
+            'ue4ss/Mods/UNBSEOBSE64Interop/dlls/main.dll'
+    } | Select-Object -First 1
     [pscustomobject]@{
         Success = $true
         Changed = $true
         Status = 'installed'
         BackupId = $backupId
         GameRoot = $game
-        DllSha256 = $pre.PackageManifest.artifacts[0].sha256
-        Obse64InteropDllSha256 = $pre.PackageManifest.artifacts[2].sha256
+        DllSha256 = $coreDllArtifact.sha256
+        Obse64InteropDllSha256 = $interopDllArtifact.sha256
         MigratedLegacyInteropDisableMarker = $legacyInteropDisablePresent
     } | ConvertTo-Json -Compress
 }

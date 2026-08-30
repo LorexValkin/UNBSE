@@ -4,6 +4,7 @@ param(
     [string]$SourceRoot = (Join-Path $PSScriptRoot '..\..\out\ue4ss-source'),
     [string]$BuildRoot = (Join-Path $PSScriptRoot '..\..\out\ue4ss-build'),
     [string]$InteropBuildRoot = (Join-Path $PSScriptRoot '..\..\out\ue4ss-build-obse64interop'),
+    [string]$LoaderBuildRoot = (Join-Path $PSScriptRoot '..\..\out\unbse-loader-build'),
     [string]$PackageRoot = (Join-Path $PSScriptRoot '..\..\out\ue4ss-package'),
     [ValidateRange(1, 64)][int]$Parallel = 8
 )
@@ -105,15 +106,23 @@ $repositoryRoot = Get-UNBSEBuildCanonicalPath (Join-Path $PSScriptRoot '..\..') 
 $source = Assert-UNBSENoReparsePath $SourceRoot -AllowMissingLeaf
 $build = Assert-UNBSENoReparsePath $BuildRoot -AllowMissingLeaf
 $interopBuild = Assert-UNBSENoReparsePath $InteropBuildRoot -AllowMissingLeaf
+$loaderBuild = Assert-UNBSENoReparsePath $LoaderBuildRoot -AllowMissingLeaf
 $package = Assert-UNBSENoReparsePath $PackageRoot -AllowMissingLeaf
 $modSource = Assert-UNBSENoReparsePath (Join-Path $PSScriptRoot '..\mod\UNBSE')
 $interop = $manifest.unbseMod.obse64Interop
+$loader = $manifest.unbseMod.loader
 if ([string]$interop.name -cne 'UNBSEOBSE64Interop' -or
     [string]$interop.packageDll -cne 'ue4ss/Mods/UNBSEOBSE64Interop/dlls/main.dll' -or
     [string]$interop.enabledFile -cne 'ue4ss/Mods/UNBSEOBSE64Interop/enabled.txt') {
     throw 'The authenticated OBSE64 base-component package boundary has drifted.'
 }
 $interopSource = Assert-UNBSENoReparsePath (Join-Path $repositoryRoot $interop.sourceDirectory)
+if ([string]$loader.name -cne 'UNBSELoader' -or
+    [string]$loader.target -cne 'UNBSELoader' -or
+    [string]$loader.packageExecutable -cne 'UNBSELoader.exe') {
+    throw 'The authenticated UNBSE launcher package boundary has drifted.'
+}
+$loaderSource = Assert-UNBSENoReparsePath (Join-Path $repositoryRoot $loader.sourceDirectory)
 $patches = @()
 foreach ($patchRecord in $manifest.patchSet.patches) {
     $patchPath = Assert-UNBSENoReparsePath (Join-Path $repositoryRoot $patchRecord.relativePath)
@@ -275,6 +284,32 @@ try {
         '--target', [string]$interop.target,
         '--parallel', [string]$Parallel
     )
+    $hostArtifact = Assert-UNBSENoReparsePath (Get-UNBSEBuildCanonicalPath (
+        Join-Path $build "$($manifest.unbseMod.buildConfiguration)\bin\UE4SS.dll") -MustExist)
+    $hostHash = Get-UNBSEHash $hostArtifact
+    $hostBytes = [long](Get-Item -LiteralPath $hostArtifact).Length
+    $hostImage = [IO.File]::ReadAllBytes($hostArtifact)
+    $hostWideText = [Text.Encoding]::Unicode.GetString($hostImage)
+    if (-not $hostWideText.Contains('[UE4SS.CppModLifecycle]')) {
+        throw 'Built UE4SS host does not contain the required lifecycle instrumentation marker.'
+    }
+    $hostImage = $null
+    $hostWideText = $null
+    New-Item -ItemType Directory -Path $loaderBuild -Force | Out-Null
+    Invoke-UNBSENative cmake @(
+        '-S', $loaderSource,
+        '-B', $loaderBuild,
+        '-G', 'Visual Studio 17 2022',
+        '-A', 'x64',
+        "-DUNBSE_EXPECTED_UE4SS_SHA256=$hostHash",
+        "-DUNBSE_EXPECTED_UE4SS_BYTES=$hostBytes"
+    )
+    Invoke-UNBSENative cmake @(
+        '--build', $loaderBuild,
+        '--config', [string]$loader.buildConfiguration,
+        '--target', [string]$loader.target,
+        '--parallel', [string]$Parallel
+    )
     $resolvedCargoLockHash = Get-UNBSEHash $cargoLock
     if ($resolvedCargoLockHash -ne $cargoLockRecord.resolvedWorkingTreeSha256.ToUpperInvariant()) {
         throw "Cargo produced an unrecognized dependency resolution: $resolvedCargoLockHash"
@@ -298,17 +333,35 @@ $interopArtifact = Assert-UNBSENoReparsePath `
     (Get-UNBSEBuildCanonicalPath $interopArtifact -MustExist)
 $interopDllHash = Get-UNBSEHash $interopArtifact
 $interopDllBytes = (Get-Item -LiteralPath $interopArtifact).Length
+$loaderArtifact = Join-Path $loaderBuild "$($loader.buildConfiguration)\$($loader.packageExecutable)"
+$loaderArtifact = Assert-UNBSENoReparsePath `
+    (Get-UNBSEBuildCanonicalPath $loaderArtifact -MustExist)
+$loaderHash = Get-UNBSEHash $loaderArtifact
+$loaderBytes = (Get-Item -LiteralPath $loaderArtifact).Length
+$hostPackageDll = Join-Path $package 'ue4ss\UE4SS.dll'
+New-Item -ItemType Directory -Path (Split-Path $hostPackageDll -Parent) -Force | Out-Null
+Copy-Item -LiteralPath $hostArtifact -Destination $hostPackageDll -Force
 $packageDll = Join-Path $package $manifest.unbseMod.packageDll
 New-Item -ItemType Directory -Path (Split-Path $packageDll -Parent) -Force | Out-Null
 Copy-Item -LiteralPath $artifact -Destination $packageDll -Force
 $enabled = Join-Path $package 'ue4ss\Mods\UNBSE\enabled.txt'
 [IO.File]::WriteAllText($enabled, '', [Text.UTF8Encoding]::new($false))
+$coreLuaStub = Join-Path $package 'ue4ss\Mods\UNBSE\Scripts\main.lua'
+New-Item -ItemType Directory -Path (Split-Path $coreLuaStub -Parent) -Force | Out-Null
+Copy-Item -LiteralPath (Join-Path $modSource 'Scripts\main.lua') `
+    -Destination $coreLuaStub -Force
 $interopPackageDll = Join-Path $package $interop.packageDll
 New-Item -ItemType Directory -Path (Split-Path $interopPackageDll -Parent) -Force | Out-Null
 Copy-Item -LiteralPath $interopArtifact -Destination $interopPackageDll -Force
 $interopEnabled = Join-Path $package $interop.enabledFile
 New-Item -ItemType Directory -Path (Split-Path $interopEnabled -Parent) -Force | Out-Null
 [IO.File]::WriteAllText($interopEnabled, '', [Text.UTF8Encoding]::new($false))
+$interopLuaStub = Join-Path $package 'ue4ss\Mods\UNBSEOBSE64Interop\Scripts\main.lua'
+New-Item -ItemType Directory -Path (Split-Path $interopLuaStub -Parent) -Force | Out-Null
+Copy-Item -LiteralPath (Join-Path $interopSource 'Scripts\main.lua') `
+    -Destination $interopLuaStub -Force
+$loaderPackageExecutable = Join-Path $package $loader.packageExecutable
+Copy-Item -LiteralPath $loaderArtifact -Destination $loaderPackageExecutable -Force
 foreach ($sourceFile in $interop.sourceFiles) {
     $path = Assert-UNBSENoReparsePath (Join-Path $repositoryRoot $sourceFile.relativePath)
     if ((Get-UNBSECanonicalTextHash $path) -ne $sourceFile.sha256.ToUpperInvariant()) {
@@ -381,7 +434,20 @@ $packageManifest = [ordered]@{
         }
     })
     runtimeRole = 'capability-injector'
+    patchedFoundation = [ordered]@{
+        relativePath = 'ue4ss/UE4SS.dll'
+        sha256 = $hostHash
+        bytes = $hostBytes
+        requiredCapabilityMarkers = @('UE4SS.CppModLifecycle')
+    }
     requiredExports = @($manifest.unbseMod.requiredExports)
+    launcher = [ordered]@{
+        name = [string]$loader.name
+        packageExecutable = [string]$loader.packageExecutable
+        supportedDistribution = [string]$loader.supportedDistribution
+        supportedRuntimeVersion = [string]$loader.supportedRuntimeVersion
+        injectionPolicy = [string]$loader.injectionPolicy
+    }
     addonHost = [ordered]@{
         abiVersion = 1
         messagingAbiVersion = 1
@@ -415,6 +481,11 @@ $packageManifest = [ordered]@{
             bytes = 0
         },
         [ordered]@{
+            relativePath = 'ue4ss/Mods/UNBSE/Scripts/main.lua'
+            sha256 = Get-UNBSEHash $coreLuaStub
+            bytes = [long](Get-Item -LiteralPath $coreLuaStub).Length
+        },
+        [ordered]@{
             relativePath = [string]$interop.packageDll
             sha256 = $interopDllHash
             bytes = $interopDllBytes
@@ -423,6 +494,21 @@ $packageManifest = [ordered]@{
             relativePath = [string]$interop.enabledFile
             sha256 = 'E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855'
             bytes = 0
+        },
+        [ordered]@{
+            relativePath = 'ue4ss/Mods/UNBSEOBSE64Interop/Scripts/main.lua'
+            sha256 = Get-UNBSEHash $interopLuaStub
+            bytes = [long](Get-Item -LiteralPath $interopLuaStub).Length
+        },
+        [ordered]@{
+            relativePath = [string]$loader.packageExecutable
+            sha256 = $loaderHash
+            bytes = $loaderBytes
+        },
+        [ordered]@{
+            relativePath = 'ue4ss/UE4SS.dll'
+            sha256 = $hostHash
+            bytes = $hostBytes
         }
     ) + $sdkArtifacts
 }
@@ -438,10 +524,15 @@ $packageManifestPath = Join-Path $package 'unbse-mod-manifest.json'
     SourceRoot = $source
     BuildRoot = $build
     InteropBuildRoot = $interopBuild
+    LoaderBuildRoot = $loaderBuild
     PackageRoot = $package
     DllSha256 = $dllHash
     DllBytes = $dllBytes
     Obse64InteropDllSha256 = $interopDllHash
     Obse64InteropDllBytes = $interopDllBytes
+    LoaderSha256 = $loaderHash
+    LoaderBytes = $loaderBytes
+    PatchedHostSha256 = $hostHash
+    PatchedHostBytes = $hostBytes
     PackageManifest = $packageManifestPath
 } | ConvertTo-Json -Compress

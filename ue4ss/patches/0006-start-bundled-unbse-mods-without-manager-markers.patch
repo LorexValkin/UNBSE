@@ -1,0 +1,40 @@
+diff --git a/UE4SS/src/UE4SSProgram.cpp b/UE4SS/src/UE4SSProgram.cpp
+--- a/UE4SS/src/UE4SSProgram.cpp
++++ b/UE4SS/src/UE4SSProgram.cpp
+@@ -1446,5 +1446,35 @@ namespace RC
+     auto start_mods() -> std::string
+     {
+         ProfilerScope();
+-
++        // UNBSE and its OBSE64 bridge are foundation components, not profile
++        // selectable user mods. Mod managers may intentionally withhold
++        // enabled.txt and rewrite mods.txt, so activate the bundled components
++        // deterministically when their authenticated directories are present.
++        if constexpr (std::is_same_v<ModType, CppMod>)
++        {
++            const auto start_bundled_mod = [](StringType mod_name) {
++                auto mod = UE4SSProgram::find_mod_by_name<CppMod>(
++                    mod_name, UE4SSProgram::IsInstalled::Yes);
++                auto cpp_mod = dynamic_cast<CppMod*>(mod);
++                if (!cpp_mod)
++                {
++                    Output::send<LogLevel::Warning>(
++                        STR("[UE4SS.UNBSEBootstrap] bundled C++ mod '{}' is missing or invalid.\n"),
++                        mod_name);
++                    return;
++                }
++                if (cpp_mod->is_started())
++                {
++                    return;
++                }
++
++                Output::send(
++                    STR("[UE4SS.UNBSEBootstrap] starting bundled C++ mod '{}' independent of manager state.\n"),
++                    mod_name);
++                cpp_mod->start_mod();
++            };
++            start_bundled_mod(STR("UNBSE"));
++            start_bundled_mod(STR("UNBSEOBSE64Interop"));
++        }
++
+         // Determine which mods.txt file(s) to parse

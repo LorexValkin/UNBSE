@@ -10,7 +10,10 @@ $ErrorActionPreference = 'Stop'
 function Fail([string]$Message) { throw "UNBSE core-manifest boundary: $Message" }
 
 function Get-Sha256([string]$Path) {
-    $stream = [IO.File]::OpenRead($Path)
+    $utf8 = [Text.UTF8Encoding]::new($false, $true)
+    $text = $utf8.GetString([IO.File]::ReadAllBytes($Path))
+    $canonicalText = $text.Replace("`r`n", "`n").Replace("`r", "`n")
+    $stream = [IO.MemoryStream]::new($utf8.GetBytes($canonicalText), $false)
     try {
         $sha256 = [Security.Cryptography.SHA256]::Create()
         try {
@@ -45,8 +48,8 @@ $manifestFull = Get-CanonicalFile $ManifestPath
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $repositoryRoot = $repositoryRoot.TrimEnd(
     [IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
-$coreVersion = '0.11.0-rc.1'
-$foundationId = 'ue4ss-3.0.1-beta0-68dd45cb-unbse-patchset-v1-mod-0.11.0-rc.1'
+$coreVersion = '0.12.0'
+$foundationId = 'ue4ss-3.0.1-beta0-68dd45cb-unbse-patchset-v1-mod-0.12.0'
 $coreSourcePaths = @(
     'include/UNBSEAddonHostV1.h',
     'include/UNBSEMessagingV1.h',
@@ -54,7 +57,12 @@ $coreSourcePaths = @(
     'include/UNBSERuntimeInfoV1.h',
     'include/UNBSEScriptServiceV1.h',
     'ue4ss/addons/README.md',
+    'ue4ss/loader/CMakeLists.txt',
+    'ue4ss/loader/include/UNBSEAssetPreflight.hpp',
+    'ue4ss/loader/src/main.cpp',
+    'ue4ss/loader/src/UNBSEAssetPreflight.cpp',
     'ue4ss/mod/UNBSE/CMakeLists.txt',
+    'ue4ss/mod/UNBSE/Scripts/main.lua',
     'ue4ss/mod/UNBSE/include/AddonRegistry.hpp',
     'ue4ss/mod/UNBSE/include/CoreLuaBinding.hpp',
     'ue4ss/mod/UNBSE/include/ScriptServiceRegistry.hpp',
@@ -77,6 +85,7 @@ $obseInteropSourcePaths = @(
     'ue4ss/mod/OBSE64Interop/include/OBSE64PluginABI.hpp',
     'ue4ss/mod/OBSE64Interop/include/OBSE64PluginManager.hpp',
     'ue4ss/mod/OBSE64Interop/include/OBSE64PluginScanner.hpp',
+    'ue4ss/mod/OBSE64Interop/Scripts/main.lua',
     'ue4ss/mod/OBSE64Interop/src/dllmain.cpp',
     'ue4ss/mod/OBSE64Interop/src/OBSE64PluginManager.cpp',
     'ue4ss/mod/OBSE64Interop/src/OBSE64PluginScanner.cpp'
@@ -156,6 +165,16 @@ $manifest.unbseMod = [ordered]@{
         genericConsolePassthrough = $false
         mcpOwned = $false
     }
+    loader = [ordered]@{
+        name = 'UNBSELoader'
+        target = 'UNBSELoader'
+        buildConfiguration = 'Release'
+        sourceDirectory = 'ue4ss/loader'
+        packageExecutable = 'UNBSELoader.exe'
+        supportedDistribution = 'Steam'
+        supportedRuntimeVersion = '1.512.105.0'
+        injectionPolicy = 'pinned-ue4ss-after-manager-vfs'
+    }
     obse64Interop = [ordered]@{
         name = 'UNBSEOBSE64Interop'
         version = '0.1.0'
@@ -182,6 +201,8 @@ $manifest.unbseMod = [ordered]@{
         bundledMcp = $false
         bundledGameFeatureAddons = $false
         baseObse64Interop = $true
+        bundledBlueprintLoader = $true
+        modManagerRecognitionStubs = $true
         optionalAddonsDefaultEnabled = $false
     }
     buildGeneratedState = $generatedState

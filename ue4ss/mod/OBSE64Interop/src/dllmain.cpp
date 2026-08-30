@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <cwctype>
 #include <cstring>
 #include <filesystem>
 #include <memory>
@@ -48,7 +49,52 @@ namespace
                 STR("[UNBSE.OBSE64Interop] {{\"schema\":\"UNBSE.OBSE64Interop\","
                     "\"schemaVersion\":1,\"event\":\"{}\",\"status\":\"{}\","
                     "\"detail\":{}}}\n"),
-                ensure_str(Event), ensure_str(Status), Detail);
+                 ensure_str(Event), ensure_str(Status), Detail);
+    }
+
+    auto FindLegacyOBSE64Runtime() -> std::wstring
+    {
+        std::array<HMODULE, 1024> Modules{};
+        DWORD BytesNeeded{};
+        if (!EnumProcessModules(GetCurrentProcess(), Modules.data(),
+                                static_cast<DWORD>(sizeof(Modules)), &BytesNeeded))
+        {
+            return {};
+        }
+        const auto Count = std::min<std::size_t>(
+                Modules.size(), BytesNeeded / sizeof(HMODULE));
+        for (std::size_t Index = 0; Index < Count; ++Index)
+        {
+            std::array<wchar_t, MAX_PATH> Name{};
+            if (GetModuleBaseNameW(GetCurrentProcess(), Modules[Index], Name.data(),
+                                   static_cast<DWORD>(Name.size())) == 0)
+            {
+                continue;
+            }
+            auto Lower = std::wstring{Name.data()};
+            std::transform(Lower.begin(), Lower.end(), Lower.begin(),
+                           [](const wchar_t Character) {
+                               return static_cast<wchar_t>(std::towlower(Character));
+                           });
+            const auto IsRuntime =
+                    Lower == L"obse64_steam_loader.dll" ||
+                    (Lower.starts_with(L"obse64_") && Lower.ends_with(L".dll"));
+            if (IsRuntime)
+            {
+                return Name.data();
+            }
+        }
+        return {};
+    }
+
+    auto LogRuntimeConflict(const std::wstring& Module) -> void
+    {
+        Output::send(
+                STR("[UNBSE.OBSE64Interop] {{\"schema\":\"UNBSE.OBSE64Interop\","
+                    "\"schemaVersion\":1,\"event\":\"runtime-conflict\","
+                    "\"status\":\"legacy-runtime-loaded-stand-down\","
+                    "\"module\":\"{}\"}}\n"),
+                ensure_str(Module));
     }
 
     template <typename Function>
@@ -246,6 +292,13 @@ class UNBSEOBSE64Interop final : public CppUserModBase
         ModDescription = STR("Clean-room OBSE64 plugin ABI interoperability add-on for UNBSE");
         ModAuthors = STR("Unblivion Project");
 
+        if (const auto LegacyRuntime = FindLegacyOBSE64Runtime(); !LegacyRuntime.empty())
+        {
+            m_runtime_conflict = true;
+            LogRuntimeConflict(LegacyRuntime);
+            return;
+        }
+
         m_connection = RegisterAddon();
         const auto Executable = GetExecutablePath();
         if (Executable.empty())
@@ -321,6 +374,11 @@ class UNBSEOBSE64Interop final : public CppUserModBase
 
     auto on_unreal_init() -> void override
     {
+        if (m_runtime_conflict)
+        {
+            LogStatus("lifecycle", "runtime-conflict-stand-down");
+            return;
+        }
         LogStatus("lifecycle",
                   m_manager && m_manager->DataLoadedDispatched()
                           ? "data-loaded-exact-call-observed"
@@ -332,6 +390,7 @@ class UNBSEOBSE64Interop final : public CppUserModBase
     FUNBSEConnection m_connection{};
     std::unique_ptr<UNBSE::OBSE64::FPluginManager> m_manager{};
     bool m_data_loaded_hook_armed{};
+    bool m_runtime_conflict{};
 };
 
 #define UNBSE_OBSE64_INTEROP_API __declspec(dllexport)
