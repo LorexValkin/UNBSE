@@ -7,5 +7,7 @@ constructing undocumented paths.
 Existing versioned fields and resources remain stable. Additive SDK changes stay
 under `v1`; incompatible documentation contract changes receive a new API version.
 Release and interface metadata must be updated in the same change as the public
-manifest or SDK headers. The publication workflow copies the canonical headers
-from `include/` into the hosted `api/v1/headers/` path.
+manifest or SDK headers. The publication workflow copies the five headers named
+by `v1/headers/index.json` from `include/` into the hosted
+`api/v1/headers/` path. That list is the explicit public SDK allowlist; other
+headers in `include/` are not part of the documentation API.

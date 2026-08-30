@@ -30,6 +30,15 @@ function Get-UNBSEBuildCanonicalPath {
     return $full.TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
 }
 
+function Get-UNBSECanonicalTextHash {
+    param([Parameter(Mandatory)][string]$Path)
+
+    $utf8 = [Text.UTF8Encoding]::new($false, $true)
+    $text = $utf8.GetString([IO.File]::ReadAllBytes($Path))
+    $canonicalText = $text.Replace("`r`n", "`n").Replace("`r", "`n")
+    return Get-UNBSEHashBytes ($utf8.GetBytes($canonicalText))
+}
+
 function Invoke-UNBSENative {
     param(
         [Parameter(Mandatory)][string]$Command,
@@ -108,7 +117,7 @@ $interopSource = Assert-UNBSENoReparsePath (Join-Path $repositoryRoot $interop.s
 $patches = @()
 foreach ($patchRecord in $manifest.patchSet.patches) {
     $patchPath = Assert-UNBSENoReparsePath (Join-Path $repositoryRoot $patchRecord.relativePath)
-    if ((Get-UNBSEHash $patchPath) -ne $patchRecord.sha256.ToUpperInvariant()) {
+    if ((Get-UNBSECanonicalTextHash $patchPath) -ne $patchRecord.sha256.ToUpperInvariant()) {
         throw "UE4SS patch SHA-256 differs from the foundation manifest: $patchPath"
     }
     $applyRoot = if ($patchRecord.PSObject.Properties.Name -contains 'applyRoot') {
@@ -131,7 +140,7 @@ foreach ($patchRecord in $manifest.patchSet.patches) {
 }
 foreach ($sourceFile in $manifest.unbseMod.sourceFiles) {
     $path = Assert-UNBSENoReparsePath (Join-Path $repositoryRoot $sourceFile.relativePath)
-    if ((Get-UNBSEHash $path) -ne $sourceFile.sha256.ToUpperInvariant()) {
+    if ((Get-UNBSECanonicalTextHash $path) -ne $sourceFile.sha256.ToUpperInvariant()) {
         throw "UNBSE mod source SHA-256 differs from the foundation manifest: $($sourceFile.relativePath)"
     }
 }
@@ -302,7 +311,7 @@ New-Item -ItemType Directory -Path (Split-Path $interopEnabled -Parent) -Force |
 [IO.File]::WriteAllText($interopEnabled, '', [Text.UTF8Encoding]::new($false))
 foreach ($sourceFile in $interop.sourceFiles) {
     $path = Assert-UNBSENoReparsePath (Join-Path $repositoryRoot $sourceFile.relativePath)
-    if ((Get-UNBSEHash $path) -ne $sourceFile.sha256.ToUpperInvariant()) {
+    if ((Get-UNBSECanonicalTextHash $path) -ne $sourceFile.sha256.ToUpperInvariant()) {
         throw "OBSE64 base component source SHA-256 differs from the foundation manifest: $($sourceFile.relativePath)"
     }
 }

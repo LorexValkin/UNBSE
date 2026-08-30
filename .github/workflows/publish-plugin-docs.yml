@@ -33,30 +33,77 @@ jobs:
       - name: Validate published metadata
         shell: bash
         run: |
+          set -euo pipefail
           find docs/api -name '*.json' -print0 | xargs -0 jq empty
+          test "$(jq -r '.currentVersion' docs/api/index.json)" = "v1"
+          test -f "docs/api/$(jq -r '.versions[] | select(.id == "v1") | .catalog' docs/api/index.json)"
+          test -f "docs/api/$(jq -r '.versions[] | select(.id == "v1") | .openapi' docs/api/index.json)"
+          while IFS= read -r resource; do
+            test -f "docs/api/v1/$resource"
+          done < <(jq -r '.resources[]' docs/api/v1/index.json)
           test "$(jq -r '.unbseMod.version' ue4ss/foundation-manifest.json)" = \
                "$(jq -r '.unbseVersion' docs/api/v1/release.json)"
           test "$(jq -r '.supportedGame.runtimeVersion' ue4ss/foundation-manifest.json)" = \
                "$(jq -r '.supportedGame.version' docs/api/v1/release.json)"
           test "$(jq -r '.supportedGame.executable' ue4ss/foundation-manifest.json)" = \
                "$(jq -r '.supportedGame.executable' docs/api/v1/release.json)"
+          test "$(jq -r '.supportedGame.sha256' ue4ss/foundation-manifest.json)" = \
+               "$(jq -r '.supportedGame.executableSha256' docs/api/v1/release.json)"
+          test "$(jq -r '.supportedGame.textSha256' ue4ss/foundation-manifest.json)" = \
+               "$(jq -r '.supportedGame.textSectionSha256' docs/api/v1/release.json)"
+          test "$(jq -r '.foundationId' ue4ss/foundation-manifest.json)" = \
+               "$(jq -r '.runtime.foundationId' docs/api/v1/release.json)"
+          test "$(jq -r '.upstream.commit' ue4ss/foundation-manifest.json)" = \
+               "$(jq -r '.runtime.ue4ssCommit' docs/api/v1/release.json)"
+          test "$(jq -r '.upstream.displayVersion' ue4ss/foundation-manifest.json)" = \
+               "$(jq -r '.runtime.ue4ssVersion' docs/api/v1/release.json)"
+          grep -Fq \
+            "ModVersion = STR(\"$(jq -r '.unbseVersion' docs/api/v1/release.json)\")" \
+            ue4ss/mod/UNBSE/src/UNBSECoreMod.cpp
           test "$(jq -r '.unbseMod.addonHost.maximumRegisteredAddons' ue4ss/foundation-manifest.json)" = \
                "$(jq -r '.limits.registeredAddons' docs/api/v1/interfaces.json)"
+          test "$(jq -r '.unbseMod.addonHost.maximumMessageListeners' ue4ss/foundation-manifest.json)" = \
+               "$(jq -r '.limits.messageListeners' docs/api/v1/interfaces.json)"
           test "$(jq -r '.unbseMod.scriptService.maximumFunctions' ue4ss/foundation-manifest.json)" = \
                "$(jq -r '.limits.scriptFunctions' docs/api/v1/interfaces.json)"
+          test "$(jq -r '.unbseMod.scriptService.maximumFunctionsPerOwner' ue4ss/foundation-manifest.json)" = \
+               "$(jq -r '.limits.scriptFunctionsPerOwner' docs/api/v1/interfaces.json)"
+          test "$(jq -r '.unbseMod.scriptService.maximumArguments' ue4ss/foundation-manifest.json)" = \
+               "$(jq -r '.limits.scriptArguments' docs/api/v1/interfaces.json)"
+          test "$(jq -r '.unbseMod.scriptService.defaultDeadlineMilliseconds' ue4ss/foundation-manifest.json)" = \
+               "$(jq -r '.limits.defaultScriptDeadlineMs' docs/api/v1/interfaces.json)"
+          test "$(jq '.interfaces | length' docs/api/v1/interfaces.json)" = "5"
+          jq -e 'all(.interfaces[]; (.queryExport | length > 0) and (.querySignature | length > 0) and (.structures | length > 0))' \
+            docs/api/v1/interfaces.json >/dev/null
+          jq -e 'all(.interfaces[].functions[]; (.signature | length > 0) and (.returns | length > 0) and (.use | length > 0))' \
+            docs/api/v1/interfaces.json >/dev/null
+          jq -e 'all(.interfaces[].callbacks[]?; (.signature | length > 0) and (.returns | length > 0) and (.use | length > 0))' \
+            docs/api/v1/interfaces.json >/dev/null
+          test "$(jq '.paths | length' docs/api/v1/openapi.json)" = "7"
+          jq -e 'all(.paths[]; has("get") and (.get.operationId | length > 0) and (.get.responses | has("200")))' \
+            docs/api/v1/openapi.json >/dev/null
+          mapfile -t public_headers < <(jq -r '.headers[]' docs/api/v1/headers/index.json)
+          test "$(jq -r '.scope' docs/api/v1/headers/index.json)" = "public-sdk-allowlist"
+          test "${#public_headers[@]}" = "5"
+          for header in "${public_headers[@]}"; do
+            test -f "include/$header"
+            test "$(jq --arg header "headers/$header" '[.interfaces[] | select(.header == $header)] | length' docs/api/v1/interfaces.json)" = "1"
+            test "$(jq --arg header "$header" '[.components.schemas.HeaderName.enum[] | select(. == $header)] | length' docs/api/v1/openapi.json)" = "1"
+          done
+          test -f docs/index.html
+          test -f docs/plugin-development.html
+          test -f docs/api-reference.html
+          test -f docs/styles.css
+          test -f docs/site.js
 
       - name: Assemble documentation site
         shell: bash
         run: |
           mkdir -p _site/api/v1/headers
           cp -R docs/. _site/
-          cp \
-            include/UNBSEAddonHostV1.h \
-            include/UNBSEMessagingV1.h \
-            include/UNBSEScriptServiceV1.h \
-            include/UNBSERuntimeInfoV1.h \
-            include/UNBSERelocationV1.h \
-            _site/api/v1/headers/
+          while IFS= read -r header; do
+            cp "include/$header" _site/api/v1/headers/
+          done < <(jq -r '.headers[]' docs/api/v1/headers/index.json)
 
       - name: Upload documentation site
         uses: actions/upload-pages-artifact@v4

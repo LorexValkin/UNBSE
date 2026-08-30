@@ -1,66 +1,177 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Build native plugins for the Unblivion Script Extender.">
-  <title>UNBSE Plugin Development</title>
+  <meta name="description" content="UNBSE API documentation, SDK calls, compatibility metadata, and native plugin guides for Oblivion Remastered modders.">
+  <meta name="color-scheme" content="light dark">
+  <title>UNBSE Developer Documentation</title>
+  <script>
+    document.documentElement.classList.add("js");
+    try {
+      const savedTheme = localStorage.getItem("unbse-theme");
+      if (savedTheme === "light" || savedTheme === "dark") {
+        document.documentElement.dataset.theme = savedTheme;
+      }
+    } catch (_) {}
+  </script>
   <link rel="stylesheet" href="styles.css">
+  <script src="site.js" defer></script>
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+
   <header class="site-header">
-    <a class="brand" href="./">UNBSE</a>
-    <nav aria-label="Primary navigation">
-      <a href="plugin-development.html">Plugin guide</a>
-      <a href="api/v1/openapi.json">REST API</a>
-      <a href="https://github.com/LorexValkin/UNBSE">Source</a>
-    </nav>
+    <div class="header-inner">
+      <a class="brand" href="./" aria-label="UNBSE developer documentation home">
+        <span class="brand-mark" aria-hidden="true">U</span>
+        <span>UNBSE <small>Developers</small></span>
+      </a>
+      <nav class="primary-nav" aria-label="Primary navigation">
+        <a aria-current="page" href="./">Overview</a>
+        <a href="plugin-development.html">Guides</a>
+        <a href="api-reference.html">API reference</a>
+        <a href="api-reference.html#sdk-headers">SDK headers</a>
+        <a href="https://github.com/LorexValkin/UNBSE">GitHub</a>
+      </nav>
+      <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch color theme">
+        <span aria-hidden="true" data-theme-icon>◐</span>
+        <span data-theme-label>Theme</span>
+      </button>
+    </div>
   </header>
 
-  <main>
+  <div class="release-strip" role="status">
+    <div>
+      <span class="status-dot" aria-hidden="true"></span>
+      SDK v1 is current
+      <span aria-hidden="true">·</span>
+      UNBSE <span data-release-version>0.11.0-rc.1</span>
+      <a href="api-reference.html#compatibility">View compatibility</a>
+    </div>
+  </div>
+
+  <main id="main-content" class="home-main">
     <section class="hero">
-      <p class="eyebrow">Unblivion Script Extender</p>
-      <h1>Build the plugin your mod needs.</h1>
-      <p class="lede">
-        UNBSE provides small, versioned native interfaces for add-on ownership,
-        messaging, script functions, runtime identity, and bounded address resolution.
-      </p>
-      <div class="actions">
-        <a class="button primary" href="plugin-development.html">Start building</a>
-        <a class="button" href="api/v1/index.json">Browse the API</a>
+      <div>
+        <p class="eyebrow">Unblivion Script Extender</p>
+        <h1>APIs for the mods players remember.</h1>
+        <p class="lede">
+          Build native Oblivion Remastered add-ons with a versioned C ABI for
+          ownership, messaging, script functions, runtime identity, and safe
+          executable-RVA resolution.
+        </p>
+        <div class="actions">
+          <a class="button primary" href="plugin-development.html">Build your first plugin</a>
+          <a class="button" href="api-reference.html">Explore the API</a>
+        </div>
+      </div>
+      <section class="quickstart-card" aria-labelledby="quickstart-title">
+        <div class="code-heading">
+          <div>
+            <span class="method-badge get">GET</span>
+            <strong id="quickstart-title">Discover the current API</strong>
+          </div>
+          <span class="code-language">curl</span>
+        </div>
+        <pre data-copy data-copy-label="Curl request for API discovery"><code>curl https://lorexvalkin.github.io/UNBSE/api/index.json</code></pre>
+        <p>Follow <code>currentVersion</code>; do not construct undocumented paths.</p>
+      </section>
+    </section>
+
+    <section class="stats" aria-label="Current SDK summary">
+      <div><strong>5</strong><span>public interfaces</span></div>
+      <div><strong>7</strong><span>documented HTTP routes</span></div>
+      <div><strong>v1</strong><span>stable C ABI</span></div>
+      <div><strong>1.512.105.0</strong><span>current Steam runtime</span></div>
+    </section>
+
+    <section class="section-block" aria-labelledby="choose-surface">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Choose your surface</p>
+          <h2 id="choose-surface">Everything a modder needs, in one reference</h2>
+        </div>
+        <a class="text-link" href="api-reference.html">View all calls <span aria-hidden="true">→</span></a>
+      </div>
+      <div class="surface-grid">
+        <article class="surface-card featured">
+          <span class="card-kicker">Native SDK</span>
+          <h3>Build in-process game features</h3>
+          <p>Register one owner, discover only the capabilities you use, and retire callbacks safely when your add-on unloads.</p>
+          <ul class="inline-list">
+            <li><a href="api-reference.html#sdk-addon-host">Add-on host</a></li>
+            <li><a href="api-reference.html#sdk-messaging">Messaging</a></li>
+            <li><a href="api-reference.html#sdk-script-service">Script service</a></li>
+            <li><a href="api-reference.html#sdk-runtime-info">Runtime info</a></li>
+            <li><a href="api-reference.html#sdk-relocation">Relocation</a></li>
+          </ul>
+        </article>
+        <article class="surface-card">
+          <span class="card-kicker">HTTP documentation API</span>
+          <h3>Automate release and SDK metadata</h3>
+          <p>Read static JSON from GitHub Pages for supported runtimes, interface calls, limits, guides, and header discovery.</p>
+          <a class="text-link" href="api-reference.html#http-api">Browse all seven GET routes <span aria-hidden="true">→</span></a>
+        </article>
       </div>
     </section>
 
-    <section aria-labelledby="available-now">
-      <h2 id="available-now">Available now</h2>
-      <div class="cards">
+    <section class="section-block" aria-labelledby="modder-workflows">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Common workflows</p>
+          <h2 id="modder-workflows">Go from idea to a compatible add-on</h2>
+        </div>
+      </div>
+      <div class="workflow-grid">
         <article>
-          <h3>Stable C ABI</h3>
-          <p>Build independently using five public headers with explicit structure sizes and ABI versions.</p>
+          <span class="step-number">01</span>
+          <h3>Identify the runtime</h3>
+          <p>Read the loaded executable identity before selecting build-specific behavior or addresses.</p>
+          <a href="api-reference.html#sdk-runtime-info">Runtime information</a>
         </article>
         <article>
-          <h3>Focused services</h3>
-          <p>Register an add-on, publish script functions, exchange messages, inspect the runtime, and resolve executable RVAs.</p>
+          <span class="step-number">02</span>
+          <h3>Expose a script function</h3>
+          <p>Publish a typed, namespaced native callback to a script VM the host reports as available.</p>
+          <a href="api-reference.html#sdk-script-service">Script service</a>
         </article>
         <article>
-          <h3>Versioned documentation</h3>
-          <p>Human guidance and JSON resources live beside the implementation and advance with the public SDK.</p>
+          <span class="step-number">03</span>
+          <h3>Coordinate add-ons</h3>
+          <p>Exchange bounded synchronous messages without linking independent plugin projects together.</p>
+          <a href="api-reference.html#sdk-messaging">Messaging</a>
         </article>
       </div>
     </section>
 
-    <section class="compatibility" aria-labelledby="current-target">
-      <h2 id="current-target">Current target</h2>
+    <section id="compatibility" class="compatibility-callout" aria-labelledby="current-target">
+      <div>
+        <p class="eyebrow">Compatibility boundary</p>
+        <h2 id="current-target">Current Steam runtime only</h2>
+      </div>
       <p>
-        UNBSE <code>0.11.0-rc.1</code> targets the Steam executable
+        UNBSE <code>0.11.0-rc.1</code> targets
         <code>OblivionRemastered-Win64-Shipping.exe</code> version
-        <code>1.512.105.0</code>. Native compatibility remains plugin-specific.
+        <code>1.512.105.0</code>. Native and OBSE64 plugin compatibility remains
+        plugin-by-plugin; runtime identity never substitutes for a plugin's own checks.
       </p>
     </section>
   </main>
 
-  <footer>
-    <p>UNBSE is developed by the Unblivion Project.</p>
+  <footer class="site-footer">
+    <div>
+      <div>
+        <a class="brand footer-brand" href="./">UNBSE</a>
+        <p>Public SDK documentation for the Unblivion Project.</p>
+      </div>
+      <nav aria-label="Footer navigation">
+        <a href="plugin-development.html">Plugin guide</a>
+        <a href="api-reference.html">API reference</a>
+        <a href="api/v1/openapi.json">OpenAPI JSON</a>
+        <a href="https://github.com/LorexValkin/UNBSE">Source</a>
+      </nav>
+    </div>
   </footer>
 </body>
 </html>

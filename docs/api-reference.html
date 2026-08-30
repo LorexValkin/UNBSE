@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Complete UNBSE HTTP documentation API and native SDK call reference for mod developers.">
+  <meta name="color-scheme" content="light dark">
+  <title>API Reference · UNBSE Developers</title>
+  <script>
+    document.documentElement.classList.add("js");
+    try {
+      const savedTheme = localStorage.getItem("unbse-theme");
+      if (savedTheme === "light" || savedTheme === "dark") {
+        document.documentElement.dataset.theme = savedTheme;
+      }
+    } catch (_) {}
+  </script>
+  <link rel="stylesheet" href="styles.css">
+  <script src="site.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="./" aria-label="UNBSE developer documentation home">
+        <span class="brand-mark" aria-hidden="true">U</span>
+        <span>UNBSE <small>Developers</small></span>
+      </a>
+      <nav class="primary-nav" aria-label="Primary navigation">
+        <a href="./">Overview</a>
+        <a href="plugin-development.html">Guides</a>
+        <a aria-current="page" href="api-reference.html">API reference</a>
+        <a href="#sdk-headers">SDK headers</a>
+        <a href="https://github.com/LorexValkin/UNBSE">GitHub</a>
+      </nav>
+      <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch color theme">
+        <span aria-hidden="true" data-theme-icon>◐</span>
+        <span data-theme-label>Theme</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="docs-layout">
+    <aside class="docs-sidebar" aria-label="API reference sections">
+      <div class="sidebar-inner">
+        <p class="sidebar-label">Documentation API</p>
+        <nav aria-label="Documentation API sections">
+          <a href="#overview">Overview</a>
+          <a href="#quickstart">Quick start</a>
+          <a href="#http-api">HTTP endpoints <span>7</span></a>
+        </nav>
+        <p class="sidebar-label">Native SDK</p>
+        <nav aria-label="Native SDK sections">
+          <a href="#sdk-workflows">Modder workflows</a>
+          <a href="#sdk-addon-host">Add-on host</a>
+          <a href="#sdk-messaging">Messaging</a>
+          <a href="#sdk-script-service">Script service</a>
+          <a href="#sdk-runtime-info">Runtime information</a>
+          <a href="#sdk-relocation">Relocation</a>
+          <a href="#sdk-headers">Headers</a>
+        </nav>
+        <p class="sidebar-label">Contract</p>
+        <nav aria-label="API contract resources">
+          <a href="#compatibility">Compatibility</a>
+          <a href="api/v1/openapi.json">OpenAPI 3.1</a>
+          <a href="api/v1/interfaces.json">Raw SDK JSON</a>
+        </nav>
+      </div>
+    </aside>
+
+    <main id="main-content" class="api-main" data-api-reference>
+      <section id="overview" class="api-intro">
+        <div class="breadcrumb"><a href="./">Docs</a><span aria-hidden="true">/</span>API reference</div>
+        <p class="eyebrow">API reference · v1</p>
+        <h1>Complete API reference</h1>
+        <p class="lede">
+          Inspect every published HTTP documentation endpoint and every callable
+          function in the five public native SDK interfaces.
+        </p>
+        <div class="notice info">
+          <strong>Two surfaces, one source of truth.</strong>
+          <p>
+            The HTTP routes below serve static documentation files from GitHub Pages.
+            They do not call into a running game. Native add-ons use the in-process
+            C ABI documented under <a href="#native-sdk">Native SDK calls</a>.
+          </p>
+        </div>
+      </section>
+
+      <section id="quickstart" class="reference-section">
+        <div class="reference-heading">
+          <div>
+            <p class="eyebrow">HTTP documentation API</p>
+            <h2>Quick start</h2>
+          </div>
+          <span class="version-pill">No authentication · GET only</span>
+        </div>
+        <p>
+          Begin with discovery, follow the current version into its resource
+          catalog, then cache or consume only the fields your tooling needs.
+        </p>
+        <div class="two-column-code">
+          <div>
+            <div class="code-heading">
+              <strong>cURL</strong>
+              <span class="code-language">shell</span>
+            </div>
+            <pre data-copy data-copy-label="Curl documentation API quick start"><code>curl --fail https://lorexvalkin.github.io/UNBSE/api/index.json</code></pre>
+          </div>
+          <div>
+            <div class="code-heading">
+              <strong>JavaScript</strong>
+              <span class="code-language">js</span>
+            </div>
+            <pre data-copy data-copy-label="JavaScript documentation API quick start"><code>const response = await fetch(
+  "https://lorexvalkin.github.io/UNBSE/api/index.json"
+);
+if (!response.ok) throw new Error(response.status);
+const discovery = await response.json();</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <section id="http-api" class="reference-section">
+        <div class="reference-heading">
+          <div>
+            <p class="eyebrow">All routes</p>
+            <h2>HTTP endpoints</h2>
+          </div>
+          <a class="button compact" href="api/v1/openapi.json">Open raw OpenAPI</a>
+        </div>
+        <p>
+          Every route is read-only and versioned. Examples and response previews
+          are loaded from the checked-in OpenAPI contract and current JSON resources.
+        </p>
+        <div class="reference-search">
+          <label for="api-search">Filter endpoints and native calls</label>
+          <div class="search-field">
+            <span aria-hidden="true">⌕</span>
+            <input id="api-search" type="search" placeholder="Try “messaging”, “release”, or “resolve”" autocomplete="off">
+            <span class="search-count" data-search-count aria-live="polite">Loading reference…</span>
+          </div>
+        </div>
+        <div class="api-status" data-api-status role="status">Loading the versioned API contract…</div>
+        <div class="endpoint-list" data-endpoint-list></div>
+        <noscript>
+          <div class="notice warning">
+            <strong>JavaScript is disabled.</strong>
+            <p>The complete static route list remains available below; enable JavaScript for generated examples and response previews.</p>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Method</th><th>Path</th><th>Purpose</th></tr></thead>
+              <tbody>
+                <tr><td>GET</td><td><code>/api/index.json</code></td><td>Version discovery</td></tr>
+                <tr><td>GET</td><td><code>/api/v1/index.json</code></td><td>Version 1 catalog</td></tr>
+                <tr><td>GET</td><td><code>/api/v1/release.json</code></td><td>Release compatibility</td></tr>
+                <tr><td>GET</td><td><code>/api/v1/interfaces.json</code></td><td>Native SDK calls and limits</td></tr>
+                <tr><td>GET</td><td><code>/api/v1/plugin-guide.json</code></td><td>Plugin workflow</td></tr>
+                <tr><td>GET</td><td><code>/api/v1/headers/index.json</code></td><td>Public header catalog</td></tr>
+                <tr><td>GET</td><td><code>/api/v1/headers/{headerName}</code></td><td>Header download</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </noscript>
+      </section>
+
+      <section id="native-sdk" class="reference-section">
+        <div class="reference-heading">
+          <div>
+            <p class="eyebrow">In-process C ABI</p>
+            <h2>Native SDK calls</h2>
+          </div>
+          <span class="version-pill">Windows x64 · ABI v1</span>
+        </div>
+        <p>
+          Query each versioned export, initialize every structure size, inspect
+          capabilities, and handle numeric results. Canonical headers remain
+          authoritative when prose and declarations differ.
+        </p>
+        <div id="sdk-workflows" class="workflow-reference" data-sdk-workflows></div>
+        <div class="sdk-list" data-sdk-list></div>
+      </section>
+
+      <section id="sdk-headers" class="reference-section">
+        <div class="reference-heading">
+          <div>
+            <p class="eyebrow">Canonical declarations</p>
+            <h2>SDK headers</h2>
+          </div>
+          <a class="button compact" href="api/v1/headers/index.json">Header catalog JSON</a>
+        </div>
+        <p>
+          These five versioned headers form the public add-on SDK. Download from
+          the published path or include the same files from the repository.
+        </p>
+        <div class="header-downloads" data-header-list>
+          <a href="api/v1/headers/UNBSEAddonHostV1.h"><code>UNBSEAddonHostV1.h</code><span>Download</span></a>
+          <a href="api/v1/headers/UNBSEMessagingV1.h"><code>UNBSEMessagingV1.h</code><span>Download</span></a>
+          <a href="api/v1/headers/UNBSEScriptServiceV1.h"><code>UNBSEScriptServiceV1.h</code><span>Download</span></a>
+          <a href="api/v1/headers/UNBSERuntimeInfoV1.h"><code>UNBSERuntimeInfoV1.h</code><span>Download</span></a>
+          <a href="api/v1/headers/UNBSERelocationV1.h"><code>UNBSERelocationV1.h</code><span>Download</span></a>
+        </div>
+        <div class="notice subtle">
+          <strong>Public allowlist:</strong>
+          <p>Only the five headers listed above are published as the SDK v1 contract. Other repository headers are not part of this documentation API.</p>
+        </div>
+      </section>
+
+      <section id="compatibility" class="reference-section">
+        <div class="reference-heading">
+          <div>
+            <p class="eyebrow">Runtime boundary</p>
+            <h2>Compatibility</h2>
+          </div>
+          <a class="button compact" href="api/v1/release.json">Release JSON</a>
+        </div>
+        <div class="compatibility-grid">
+          <div><span>UNBSE</span><strong data-release-version>0.11.0-rc.1</strong></div>
+          <div><span>Game build</span><strong data-game-version>1.512.105.0</strong></div>
+          <div><span>Store</span><strong data-game-store>Steam</strong></div>
+          <div><span>Native plugins</span><strong>Plugin-by-plugin</strong></div>
+        </div>
+        <div class="notice warning">
+          <strong>Do not infer compatibility from a successful query.</strong>
+          <p>
+            Runtime information reports what is loaded. Each add-on remains
+            responsible for checking the exact game build and behavior it supports;
+            relocation performs ownership and bounds checks, not semantic validation.
+          </p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <footer class="site-footer docs-footer">
+    <div>
+      <p>Documentation version: SDK v1 · UNBSE <span data-release-version>0.11.0-rc.1</span></p>
+      <nav aria-label="Footer navigation">
+        <a href="plugin-development.html">Plugin guide</a>
+        <a href="api/v1/index.json">Raw catalog</a>
+        <a href="https://github.com/LorexValkin/UNBSE">Source</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

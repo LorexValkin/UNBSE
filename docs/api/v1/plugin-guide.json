@@ -30,5 +30,6 @@
     }
   ],
   "packageLayout": "ue4ss/Mods/<YourPlugin>/dlls/main.dll",
+  "enableMarker": "ue4ss/Mods/<YourPlugin>/enabled.txt",
   "referenceImplementation": "https://github.com/LorexValkin/UNBSE/tree/main/ue4ss/mod/OBSE64Interop"
 }

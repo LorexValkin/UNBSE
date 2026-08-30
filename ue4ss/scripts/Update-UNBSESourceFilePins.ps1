@@ -9,7 +9,10 @@ $ErrorActionPreference = 'Stop'
 function Fail([string]$Message) { throw "UNBSE source-pin updater: $Message" }
 
 function Get-Sha256([string]$Path) {
-    $stream = [IO.File]::OpenRead($Path)
+    $utf8 = [Text.UTF8Encoding]::new($false, $true)
+    $text = $utf8.GetString([IO.File]::ReadAllBytes($Path))
+    $canonicalText = $text.Replace("`r`n", "`n").Replace("`r", "`n")
+    $stream = [IO.MemoryStream]::new($utf8.GetBytes($canonicalText), $false)
     try {
         $sha256 = [Security.Cryptography.SHA256]::Create()
         try {

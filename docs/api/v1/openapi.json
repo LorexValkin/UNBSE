@@ -3,190 +3,609 @@
   "info": {
     "title": "UNBSE Plugin Documentation API",
     "version": "1.0.0",
-    "description": "Read-only documentation and compatibility metadata for the public UNBSE plugin SDK."
+    "summary": "Read-only metadata for UNBSE mod developers",
+    "description": "A static, read-only HTTP catalog published with the UNBSE GitHub Pages site. It describes releases, compatibility, the native C ABI, the plugin workflow, and downloadable SDK headers. It is not an in-game REST server."
+  },
+  "externalDocs": {
+    "description": "Human-readable API reference",
+    "url": "https://lorexvalkin.github.io/UNBSE/api-reference.html"
   },
   "servers": [
     {
       "url": "https://lorexvalkin.github.io/UNBSE",
-      "description": "Published documentation"
+      "description": "Published GitHub Pages documentation"
+    }
+  ],
+  "security": [],
+  "tags": [
+    {
+      "name": "Discovery",
+      "description": "Locate the current version and the resources available within it."
+    },
+    {
+      "name": "Compatibility",
+      "description": "Read the current UNBSE and supported game runtime metadata."
+    },
+    {
+      "name": "SDK",
+      "description": "Inspect the native interface contract and download its public headers."
+    },
+    {
+      "name": "Guides",
+      "description": "Consume the ordered native plugin development path."
     }
   ],
   "paths": {
     "/api/index.json": {
       "get": {
-        "summary": "Discover available documentation API versions",
+        "tags": ["Discovery"],
+        "summary": "Discover documentation API versions",
+        "description": "Start here instead of constructing version paths. Follow currentVersion to the matching catalog entry.",
         "operationId": "getApiVersions",
         "responses": {
           "200": {
             "description": "API discovery document",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Discovery"
+                "schema": { "$ref": "#/components/schemas/Discovery" },
+                "example": {
+                  "name": "UNBSE Plugin Documentation API",
+                  "description": "Versioned public metadata and documentation for developers building UNBSE plugins.",
+                  "currentVersion": "v1",
+                  "versions": [
+                    {
+                      "id": "v1",
+                      "status": "current",
+                      "catalog": "v1/index.json",
+                      "openapi": "v1/openapi.json"
+                    }
+                  ],
+                  "documentation": "../plugin-development.html",
+                  "apiReference": "../api-reference.html",
+                  "repository": "https://github.com/LorexValkin/UNBSE"
                 }
               }
             }
-          }
+          },
+          "404": { "$ref": "#/components/responses/StaticNotFound" }
         }
       }
     },
     "/api/v1/index.json": {
       "get": {
+        "tags": ["Discovery"],
         "summary": "List version 1 resources",
+        "description": "Returns relative links to every versioned JSON or header catalog in API v1.",
         "operationId": "getV1Catalog",
         "responses": {
           "200": {
             "description": "Version 1 resource catalog",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "object"
+                "schema": { "$ref": "#/components/schemas/VersionCatalog" },
+                "example": {
+                  "name": "UNBSE Plugin Documentation API",
+                  "apiVersion": "v1",
+                  "status": "current",
+                  "resources": {
+                    "release": "release.json",
+                    "interfaces": "interfaces.json",
+                    "pluginGuide": "plugin-guide.json",
+                    "openapi": "openapi.json",
+                    "headers": "headers/index.json"
+                  },
+                  "humanDocumentation": "../../plugin-development.html",
+                  "apiReference": "../../api-reference.html",
+                  "repository": "https://github.com/LorexValkin/UNBSE"
                 }
               }
             }
-          }
+          },
+          "404": { "$ref": "#/components/responses/StaticNotFound" }
         }
       }
     },
     "/api/v1/release.json": {
       "get": {
-        "summary": "Get current release and compatibility metadata",
+        "tags": ["Compatibility"],
+        "summary": "Get release and compatibility metadata",
+        "description": "Use this document to display the current release target. Native and OBSE64 plugin compatibility remain plugin-by-plugin.",
         "operationId": "getCurrentRelease",
         "responses": {
           "200": {
             "description": "Current release metadata",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Release"
+                "schema": { "$ref": "#/components/schemas/Release" },
+                "example": {
+                  "unbseVersion": "0.11.0-rc.1",
+                  "releaseChannel": "release-candidate",
+                  "supportedGame": {
+                    "name": "Oblivion Remastered",
+                    "store": "Steam",
+                    "executable": "OblivionRemastered-Win64-Shipping.exe",
+                    "version": "1.512.105.0",
+                    "executableSha256": "B7BE7E6EBE9424F6FDF274F5E7A59372DE103E043AB5B66C60E021C0C89DF457",
+                    "textSectionSha256": "B83268DFAA916355846BB5AEBD9F6AE43835CFE4F6F32ADAFF309B42F6875ACE",
+                    "olderVersionsSupported": false
+                  },
+                  "runtime": {
+                    "ue4ssRequired": true,
+                    "ue4ssDistribution": "bundled pinned runtime",
+                    "ue4ssVersion": "3.0.1 Beta #0",
+                    "ue4ssCommit": "68dd45cb5630bd7745310c6630b19c14345176a2",
+                    "foundationId": "ue4ss-3.0.1-beta0-68dd45cb-unbse-patchset-v1-mod-0.11.0-rc.1"
+                  },
+                  "sdk": {
+                    "apiVersion": "v1",
+                    "addonHostAbiVersion": 1,
+                    "messagingAbiVersion": 1,
+                    "scriptServiceAbiVersion": 1,
+                    "runtimeInfoAbiVersion": 1,
+                    "relocationAbiVersion": 1
+                  },
+                  "compatibility": {
+                    "nativePlugins": "plugin-by-plugin",
+                    "obse64Plugins": "plugin-by-plugin",
+                    "policy": "report-and-attempt"
+                  }
                 }
               }
             }
-          }
+          },
+          "404": { "$ref": "#/components/responses/StaticNotFound" }
         }
       }
     },
     "/api/v1/interfaces.json": {
       "get": {
-        "summary": "List public SDK interfaces and limits",
+        "tags": ["SDK"],
+        "summary": "List native SDK calls, enums, structures, and limits",
+        "description": "Returns the machine-readable C ABI catalog for all five public interfaces, including query exports, service-table functions, result codes, common workflows, and fixed limits. Canonical headers remain authoritative.",
         "operationId": "getInterfaces",
         "responses": {
           "200": {
-            "description": "SDK interface catalog",
+            "description": "Native SDK interface catalog",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "object"
-                }
+                "schema": { "$ref": "#/components/schemas/InterfaceCatalog" }
               }
             }
-          }
+          },
+          "404": { "$ref": "#/components/responses/StaticNotFound" }
         }
       }
     },
     "/api/v1/plugin-guide.json": {
       "get": {
-        "summary": "Get the plugin development path",
+        "tags": ["Guides"],
+        "summary": "Get the native plugin development path",
+        "description": "Returns the ordered registration, service discovery, retirement, packaging, and compatibility steps used by the human guide.",
         "operationId": "getPluginGuide",
         "responses": {
           "200": {
             "description": "Ordered plugin development steps",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "object"
-                }
+                "schema": { "$ref": "#/components/schemas/PluginGuide" }
               }
             }
-          }
+          },
+          "404": { "$ref": "#/components/responses/StaticNotFound" }
         }
       }
     },
     "/api/v1/headers/index.json": {
       "get": {
+        "tags": ["SDK"],
         "summary": "List downloadable public SDK headers",
+        "description": "Returns the allowlisted public headers published with this documentation version.",
         "operationId": "getSdkHeaders",
         "responses": {
           "200": {
-            "description": "SDK header catalog",
+            "description": "Public SDK header catalog",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "object"
+                "schema": { "$ref": "#/components/schemas/HeaderCatalog" },
+                "example": {
+                  "apiVersion": "v1",
+                  "scope": "public-sdk-allowlist",
+                  "headers": [
+                    "UNBSEAddonHostV1.h",
+                    "UNBSEMessagingV1.h",
+                    "UNBSEScriptServiceV1.h",
+                    "UNBSERuntimeInfoV1.h",
+                    "UNBSERelocationV1.h"
+                  ],
+                  "sourceDirectory": "https://github.com/LorexValkin/UNBSE/tree/main/include"
                 }
               }
             }
-          }
+          },
+          "404": { "$ref": "#/components/responses/StaticNotFound" }
         }
       }
     },
     "/api/v1/headers/{headerName}": {
       "get": {
+        "tags": ["SDK"],
         "summary": "Download a public SDK header",
+        "description": "Downloads one canonical, versioned C ABI header from the public allowlist.",
         "operationId": "getSdkHeader",
         "parameters": [
           {
-            "name": "headerName",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "UNBSEAddonHostV1.h",
-                "UNBSEMessagingV1.h",
-                "UNBSEScriptServiceV1.h",
-                "UNBSERuntimeInfoV1.h",
-                "UNBSERelocationV1.h"
-              ]
-            }
+            "$ref": "#/components/parameters/HeaderName"
           }
         ],
         "responses": {
           "200": {
-            "description": "C ABI header",
+            "description": "C ABI header source",
             "content": {
               "text/plain": {
                 "schema": {
                   "type": "string"
-                }
+                },
+                "example": "#pragma once\n\n// Public UNBSE SDK header selected by headerName.\n"
               }
             }
           },
-          "404": {
-            "description": "Header not found"
-          }
+          "404": { "$ref": "#/components/responses/StaticNotFound" }
         }
       }
     }
   },
   "components": {
+    "responses": {
+      "StaticNotFound": {
+        "description": "The static resource path does not exist. Use API discovery and the version catalog to choose a published path."
+      }
+    },
+    "parameters": {
+      "HeaderName": {
+        "name": "headerName",
+        "in": "path",
+        "required": true,
+        "description": "A filename from the public API v1 header allowlist.",
+        "schema": {
+          "$ref": "#/components/schemas/HeaderName"
+        },
+        "example": "UNBSEAddonHostV1.h"
+      }
+    },
     "schemas": {
+      "ApiVersion": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "status", "catalog", "openapi"],
+        "properties": {
+          "id": { "type": "string", "const": "v1" },
+          "status": { "type": "string", "enum": ["current", "deprecated"] },
+          "catalog": { "type": "string" },
+          "openapi": { "type": "string" }
+        }
+      },
       "Discovery": {
         "type": "object",
-        "required": ["name", "currentVersion", "versions"],
+        "additionalProperties": false,
+        "required": ["name", "description", "currentVersion", "versions", "documentation", "apiReference", "repository"],
         "properties": {
           "name": { "type": "string" },
           "description": { "type": "string" },
-          "currentVersion": { "type": "string" },
+          "currentVersion": { "type": "string", "const": "v1" },
           "versions": {
             "type": "array",
-            "items": {
-              "type": "object"
-            }
+            "minItems": 1,
+            "items": { "$ref": "#/components/schemas/ApiVersion" }
           },
           "documentation": { "type": "string" },
+          "apiReference": { "type": "string" },
           "repository": { "type": "string", "format": "uri" }
+        }
+      },
+      "ResourceLinks": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["release", "interfaces", "pluginGuide", "openapi", "headers"],
+        "properties": {
+          "release": { "type": "string" },
+          "interfaces": { "type": "string" },
+          "pluginGuide": { "type": "string" },
+          "openapi": { "type": "string" },
+          "headers": { "type": "string" }
+        }
+      },
+      "VersionCatalog": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "apiVersion", "status", "resources", "humanDocumentation", "apiReference", "repository"],
+        "properties": {
+          "name": { "type": "string" },
+          "apiVersion": { "type": "string", "const": "v1" },
+          "status": { "type": "string", "enum": ["current", "deprecated"] },
+          "resources": { "$ref": "#/components/schemas/ResourceLinks" },
+          "humanDocumentation": { "type": "string" },
+          "apiReference": { "type": "string" },
+          "repository": { "type": "string", "format": "uri" }
+        }
+      },
+      "SupportedGame": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "store", "executable", "version", "executableSha256", "textSectionSha256", "olderVersionsSupported"],
+        "properties": {
+          "name": { "type": "string" },
+          "store": { "type": "string", "const": "Steam" },
+          "executable": { "type": "string" },
+          "version": { "type": "string" },
+          "executableSha256": { "type": "string", "pattern": "^[A-F0-9]{64}$" },
+          "textSectionSha256": { "type": "string", "pattern": "^[A-F0-9]{64}$" },
+          "olderVersionsSupported": { "type": "boolean", "const": false }
+        }
+      },
+      "Runtime": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ue4ssRequired", "ue4ssDistribution", "ue4ssVersion", "ue4ssCommit", "foundationId"],
+        "properties": {
+          "ue4ssRequired": { "type": "boolean" },
+          "ue4ssDistribution": { "type": "string" },
+          "ue4ssVersion": { "type": "string" },
+          "ue4ssCommit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+          "foundationId": { "type": "string" }
+        }
+      },
+      "SdkVersions": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["apiVersion", "addonHostAbiVersion", "messagingAbiVersion", "scriptServiceAbiVersion", "runtimeInfoAbiVersion", "relocationAbiVersion"],
+        "properties": {
+          "apiVersion": { "type": "string", "const": "v1" },
+          "addonHostAbiVersion": { "type": "integer", "const": 1 },
+          "messagingAbiVersion": { "type": "integer", "const": 1 },
+          "scriptServiceAbiVersion": { "type": "integer", "const": 1 },
+          "runtimeInfoAbiVersion": { "type": "integer", "const": 1 },
+          "relocationAbiVersion": { "type": "integer", "const": 1 }
+        }
+      },
+      "Compatibility": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["nativePlugins", "obse64Plugins", "policy"],
+        "properties": {
+          "nativePlugins": { "type": "string", "const": "plugin-by-plugin" },
+          "obse64Plugins": { "type": "string", "const": "plugin-by-plugin" },
+          "policy": { "type": "string", "const": "report-and-attempt" }
         }
       },
       "Release": {
         "type": "object",
-        "required": ["unbseVersion", "releaseChannel", "supportedGame", "compatibility"],
+        "additionalProperties": false,
+        "required": ["unbseVersion", "releaseChannel", "supportedGame", "runtime", "sdk", "compatibility"],
         "properties": {
           "unbseVersion": { "type": "string" },
-          "releaseChannel": { "type": "string" },
-          "supportedGame": { "type": "object" },
-          "runtime": { "type": "object" },
-          "compatibility": { "type": "object" }
+          "releaseChannel": { "type": "string", "enum": ["release-candidate", "stable"] },
+          "supportedGame": { "$ref": "#/components/schemas/SupportedGame" },
+          "runtime": { "$ref": "#/components/schemas/Runtime" },
+          "sdk": { "$ref": "#/components/schemas/SdkVersions" },
+          "compatibility": { "$ref": "#/components/schemas/Compatibility" }
+        }
+      },
+      "AbiContract": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "languageBoundary", "pointerLifetime", "compatibilityRule"],
+        "properties": {
+          "kind": { "type": "string" },
+          "languageBoundary": { "type": "string" },
+          "pointerLifetime": { "type": "string" },
+          "compatibilityRule": { "type": "string" }
+        }
+      },
+      "SdkFunction": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "signature", "returns", "use"],
+        "properties": {
+          "name": { "type": "string" },
+          "signature": { "type": "string" },
+          "returns": { "type": "string" },
+          "use": { "type": "string" }
+        }
+      },
+      "NamedValue": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "value"],
+        "properties": {
+          "name": { "type": "string" },
+          "value": { "type": "integer" }
+        }
+      },
+      "AbiStructure": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "sizeBytes"],
+        "properties": {
+          "name": { "type": "string" },
+          "sizeBytes": { "type": "integer", "minimum": 1 }
+        }
+      },
+      "SdkInterface": {
+        "type": "object",
+        "required": ["id", "name", "abiVersion", "header", "source", "queryExport", "querySignature", "purpose", "whenToUse", "functions", "structures"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "abiVersion": { "type": "integer", "const": 1 },
+          "header": { "type": "string" },
+          "source": { "type": "string", "format": "uri" },
+          "queryExport": { "type": "string" },
+          "querySignature": { "type": "string" },
+          "purpose": { "type": "string" },
+          "whenToUse": { "type": "string" },
+          "functions": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/SdkFunction" }
+          },
+          "callbacks": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/SdkFunction" }
+          },
+          "structures": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/AbiStructure" }
+          },
+          "capabilities": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/NamedValue" }
+          },
+          "declaredEffects": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/NamedValue" }
+          },
+          "compatibilityValues": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/NamedValue" }
+          },
+          "resultCodes": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/NamedValue" }
+          },
+          "coreMessages": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/NamedValue" }
+          },
+          "valueTypes": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/NamedValue" }
+          },
+          "functionFlags": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/NamedValue" }
+          },
+          "identityFlags": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/NamedValue" }
+          },
+          "platforms": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/NamedValue" }
+          },
+          "modules": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/NamedValue" }
+          }
+        }
+      },
+      "SdkWorkflow": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "title", "calls", "rule"],
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "calls": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "rule": { "type": "string" }
+        }
+      },
+      "SdkLimits": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["registeredAddons", "addonIdBytes", "addonVersionBytes", "messageListeners", "messageBytes", "messageSenderBytes", "scriptFunctions", "scriptFunctionsPerOwner", "scriptArguments", "scriptTokenBytes", "scriptUtf8Bytes", "scriptDiagnosticBytes", "defaultScriptDeadlineMs"],
+        "properties": {
+          "registeredAddons": { "type": "integer", "minimum": 1 },
+          "addonIdBytes": { "type": "integer", "minimum": 1 },
+          "addonVersionBytes": { "type": "integer", "minimum": 1 },
+          "messageListeners": { "type": "integer", "minimum": 1 },
+          "messageBytes": { "type": "integer", "minimum": 1 },
+          "messageSenderBytes": { "type": "integer", "minimum": 1 },
+          "scriptFunctions": { "type": "integer", "minimum": 1 },
+          "scriptFunctionsPerOwner": { "type": "integer", "minimum": 1 },
+          "scriptArguments": { "type": "integer", "minimum": 0 },
+          "scriptTokenBytes": { "type": "integer", "minimum": 1 },
+          "scriptUtf8Bytes": { "type": "integer", "minimum": 1 },
+          "scriptDiagnosticBytes": { "type": "integer", "minimum": 1 },
+          "defaultScriptDeadlineMs": { "type": "integer", "minimum": 1 }
+        }
+      },
+      "InterfaceCatalog": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sdkVersion", "platform", "callingConvention", "contract", "interfaces", "workflows", "limits"],
+        "properties": {
+          "sdkVersion": { "type": "string", "const": "v1" },
+          "platform": { "type": "string", "const": "Windows x64" },
+          "callingConvention": { "type": "string", "const": "UNBSE_SCRIPT_CALL" },
+          "contract": { "$ref": "#/components/schemas/AbiContract" },
+          "interfaces": {
+            "type": "array",
+            "minItems": 5,
+            "maxItems": 5,
+            "items": { "$ref": "#/components/schemas/SdkInterface" }
+          },
+          "workflows": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/SdkWorkflow" }
+          },
+          "limits": { "$ref": "#/components/schemas/SdkLimits" }
+        }
+      },
+      "GuideStep": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["order", "title", "summary"],
+        "properties": {
+          "order": { "type": "integer", "minimum": 1 },
+          "title": { "type": "string" },
+          "summary": { "type": "string" }
+        }
+      },
+      "PluginGuide": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["apiVersion", "title", "documentation", "steps", "packageLayout", "enableMarker", "referenceImplementation"],
+        "properties": {
+          "apiVersion": { "type": "string", "const": "v1" },
+          "title": { "type": "string" },
+          "documentation": { "type": "string" },
+          "steps": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "$ref": "#/components/schemas/GuideStep" }
+          },
+          "packageLayout": { "type": "string" },
+          "enableMarker": { "type": "string" },
+          "referenceImplementation": { "type": "string", "format": "uri" }
+        }
+      },
+      "HeaderName": {
+        "type": "string",
+        "enum": [
+          "UNBSEAddonHostV1.h",
+          "UNBSEMessagingV1.h",
+          "UNBSEScriptServiceV1.h",
+          "UNBSERuntimeInfoV1.h",
+          "UNBSERelocationV1.h"
+        ]
+      },
+      "HeaderCatalog": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["apiVersion", "scope", "headers", "sourceDirectory"],
+        "properties": {
+          "apiVersion": { "type": "string", "const": "v1" },
+          "scope": { "type": "string", "const": "public-sdk-allowlist" },
+          "headers": {
+            "type": "array",
+            "minItems": 5,
+            "maxItems": 5,
+            "uniqueItems": true,
+            "items": { "$ref": "#/components/schemas/HeaderName" }
+          },
+          "sourceDirectory": { "type": "string", "format": "uri" }
         }
       }
     }
