@@ -258,10 +258,11 @@ namespace RC::UNBSE::OBSE64
             auto Allocate(const std::size_t Bytes) -> void*
             {
                 std::lock_guard<std::mutex> Lock(Mutex);
-                if (!Base || Bytes == 0 || Bytes > Size - Used)
+                if (!Base || Bytes > Size - Used)
                 {
                     return nullptr;
                 }
+                // OBSE64 returns the current pool cursor for a zero-byte request.
                 auto Result = Base + Used;
                 Used += Bytes;
                 return Result;
