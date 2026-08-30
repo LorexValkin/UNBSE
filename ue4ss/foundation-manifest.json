@@ -259,7 +259,7 @@
       },
       {
         "relativePath": "ue4ss/scripts/Set-UNBSECoreManifestBoundary.ps1",
-        "sha256": "809BBF95B58C78851957EFC0A61F494872DDC8A665C1F325AA37D1236C548C96"
+        "sha256": "B534EDFAB50D35F900CA93AC0EF94129EA68C6EDB030E0908A6043AC3F2331C6"
       },
       {
         "relativePath": "ue4ss/scripts/UNBSEUE4SSFoundation.psm1",

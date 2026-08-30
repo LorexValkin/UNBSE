@@ -209,8 +209,10 @@ $manifest.unbseMod = [ordered]@{
 }
 
 $proposedText = ($manifest | ConvertTo-Json -Depth 100) + "`n"
+$canonicalOriginalText = $originalText.Replace("`r`n", "`n").Replace("`r", "`n")
+$canonicalProposedText = $proposedText.Replace("`r`n", "`n").Replace("`r", "`n")
 if ($Check) {
-    if ($originalText -cne $proposedText) {
+    if ($canonicalOriginalText -cne $canonicalProposedText) {
         Write-Error 'UNBSE core manifest boundary or source pins are stale.'
         exit 1
     }
@@ -218,7 +220,7 @@ if ($Check) {
     exit 0
 }
 
-if ($originalText -ceq $proposedText) {
+if ($canonicalOriginalText -ceq $canonicalProposedText) {
     Write-Host 'No UNBSE core manifest changes required.'
     exit 0
 }
