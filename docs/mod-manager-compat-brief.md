@@ -180,7 +180,8 @@ Produce three archives from `Package-UNBSERelease.ps1`:
   tick both in the UE4SS Mods tab. Root Builder optional, Copy/Link mode only.
   `UE4SS.log` may land in Overwrite.
 - Vortex: install `-runtime.zip` and `-mods.zip` as mods; if Vortex installed
-  the OBSE64 requirement, disable it and set the primary tool back to Steam;
+  the OBSE64 requirement, disable it; use `UNBSELoader.exe` as the primary tool
+  when the prelaunch version guard is wanted;
   if Nexus UE4SS (mod 32) is installed, uninstall it or resolve the conflict
   in UNBSE's favour.
 - State the OBSE64-removal prerequisite in manager terms.
@@ -243,6 +244,27 @@ Ship next to the exe in `-runtime.zip`; MO2 users add it as an executable
    `mods.txt` content that UE4SS reports.
 3. Vortex: confirm `obse64_loader.exe` is not the primary tool and no
    `obse64_*.dll` is in `Win64`; confirm no file conflicts on `UE4SS.dll`.
+
+## Follow-up: prelaunch plugin-version guard
+
+The launcher may statically inspect `OBSE/Plugins/*.dll` before it creates the
+game process. It must not call `LoadLibrary` or execute plugin code. Warn as a
+group when a declaration excludes `1.512.105.0`, claims version independence
+without an explicit current-runtime entry, cannot be read, or lacks
+`OBSEPlugin_Load`. Show the declared name, author, filename, declaration class,
+and version list. Default to cancelling launch; an explicit continue choice may
+be remembered only for the exact game and plugin SHA-256 pair. A changed binary
+must warn again. `--validate-only` must report all findings without UI or launch.
+
+This is evidence classification, not a compatibility verdict. Explicit support
+does not prove a plugin's deferred worker or hook patterns are safe, while an
+old or absent explicit version does not prove a crash. Keep deterministic
+single-plugin/bisect testing and crash-dump capture as separate runtime work.
+
+The release package must contain the locally built patched `ue4ss/UE4SS.dll`,
+not the stock DLL from the pinned foundation archive. The package manifest and
+launcher must authenticate that exact host so the promised
+`UE4SS.CppModLifecycle` logging is actually present in field reports.
 
 ## Do not
 

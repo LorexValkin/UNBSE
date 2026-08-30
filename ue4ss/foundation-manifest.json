@@ -35,7 +35,8 @@
     {
       "relativePath": "ue4ss/UE4SS.dll",
       "sha256": "041975EEEEEC83CB0270558122BA89586C4BDE5D0DB9C5728B16406B4FAAD7B3",
-      "bytes": 16519168
+      "bytes": 16519168,
+      "targetManagedByCorePackage": true
     },
     {
       "relativePath": "ue4ss/UE4SS-settings.ini",
@@ -178,11 +179,11 @@
       },
       {
         "relativePath": "ue4ss/loader/CMakeLists.txt",
-        "sha256": "856C6B658286F5F130EB9A29991CBCB9E7C493012B7848A39320DA5FCF317432"
+        "sha256": "C68E3E79DBEBF4B7F6C290A91A0180CBAA3A42DB912614E111BCDFF77044E9F8"
       },
       {
         "relativePath": "ue4ss/loader/src/main.cpp",
-        "sha256": "3AE48047163218C7DF455EDAE9E34AFFFB5CF3282BDAACD38EEFDCEA4A98F97D"
+        "sha256": "EB06E2596D6E90302FD83D07FA14C046DE4C1C1E08567F220E34165D8E3F7835"
       },
       {
         "relativePath": "ue4ss/mod/UNBSE/CMakeLists.txt",
@@ -230,7 +231,7 @@
       },
       {
         "relativePath": "ue4ss/scripts/Build-UNBSEUE4SSMod.ps1",
-        "sha256": "B91A3D37A72EA19973284FDB5D94E1322C2733C410F2A25601DDB4F540AA9ECA"
+        "sha256": "32791CDEBEF4D0FB1795A08F0CB400DE8421A469796C13FAEF6D354042ADB6B1"
       },
       {
         "relativePath": "ue4ss/scripts/Install-UNBSEUE4SSMod.ps1",
@@ -246,11 +247,11 @@
       },
       {
         "relativePath": "ue4ss/scripts/UNBSEUE4SSFoundation.psm1",
-        "sha256": "319F97842B5452D045A159D5A594ED706BD402DDB1EE9A53B0DD3343D9A4ED25"
+        "sha256": "1FB8CE7DDC9419C21B875180E532A72D6225FFF36509AB4E2BA07D32F7E5D367"
       },
       {
         "relativePath": "ue4ss/scripts/UNBSEUE4SSMod.psm1",
-        "sha256": "48970F2B65F52E20B9DF2B45A02E88B01D7C781FBD471F2E29004724D16B3C2D"
+        "sha256": "560F6402F5598BF568FFBD9A04074052072BC69CAA3840479F76583AF66E6F1B"
       },
       {
         "relativePath": "ue4ss/scripts/Update-UNBSESourceFilePins.ps1",

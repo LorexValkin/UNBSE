@@ -1,3 +1,5 @@
+#include <OBSE64PluginScanner.hpp>
+
 #include <Windows.h>
 #include <Psapi.h>
 #include <TlHelp32.h>
@@ -12,6 +14,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <optional>
 #include <span>
 #include <sstream>
@@ -19,6 +22,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -29,14 +33,18 @@ namespace
     constexpr std::wstring_view GameExecutableName =
             L"OblivionRemastered-Win64-Shipping.exe";
     constexpr std::wstring_view SupportedRuntime = L"Steam 1.512.105.0";
+    constexpr auto SupportedRuntimeVersion =
+            RC::UNBSE::OBSE64::PackRuntimeVersion(1, 512, 105, 0);
     constexpr std::wstring_view SteamGameRelativePath =
             L"steamapps/common/Oblivion Remastered/OblivionRemastered/Binaries/Win64/"
             L"OblivionRemastered-Win64-Shipping.exe";
     constexpr std::wstring_view ExpectedGameSha256 =
             L"B7BE7E6EBE9424F6FDF274F5E7A59372DE103E043AB5B66C60E021C0C89DF457";
+#define UNBSE_WIDEN_LITERAL_IMPL(Value) L##Value
+#define UNBSE_WIDEN_LITERAL(Value) UNBSE_WIDEN_LITERAL_IMPL(Value)
     constexpr std::wstring_view ExpectedUE4SSSha256 =
-            L"041975EEEEEC83CB0270558122BA89586C4BDE5D0DB9C5728B16406B4FAAD7B3";
-    constexpr std::uintmax_t ExpectedUE4SSBytes = 16519168;
+            UNBSE_WIDEN_LITERAL(UNBSE_EXPECTED_UE4SS_SHA256);
+    constexpr std::uintmax_t ExpectedUE4SSBytes = UNBSE_EXPECTED_UE4SS_BYTES;
     constexpr std::wstring_view ExpectedSettingsSha256 =
             L"BADAE1123D871A62A6735D1BACC95FF28E6ED12CFD8FE6BEA4DE0055726CBCE9";
     constexpr std::uintmax_t ExpectedSettingsBytes = 7848;
@@ -392,6 +400,307 @@ namespace
         return Result;
     }
 
+    auto Utf8ToWide(const std::string& Value) -> std::wstring
+    {
+        if (Value.empty())
+        {
+            return {};
+        }
+        const auto Required = MultiByteToWideChar(
+                CP_UTF8, MB_ERR_INVALID_CHARS, Value.data(),
+                static_cast<int>(Value.size()), nullptr, 0);
+        if (Required <= 0)
+        {
+            return std::wstring{Value.begin(), Value.end()};
+        }
+        std::wstring Result(static_cast<std::size_t>(Required), L'\0');
+        MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, Value.data(),
+                            static_cast<int>(Value.size()), Result.data(), Required);
+        return Result;
+    }
+
+    auto FormatRuntimeVersion(const std::uint32_t Version) -> std::wstring
+    {
+        return std::to_wstring((Version >> 28u) & 0xFu) + L"." +
+               std::to_wstring((Version >> 16u) & 0xFFFu) + L"." +
+               std::to_wstring((Version >> 4u) & 0xFFFu) + L"." +
+               std::to_wstring(Version & 0xFu);
+    }
+
+    struct FPluginPreflightWarning
+    {
+        std::wstring Name{};
+        std::wstring Author{};
+        fs::path Path{};
+        std::wstring Reason{};
+        std::wstring DeclaredVersions{};
+        std::wstring Fingerprint{};
+    };
+
+    auto DeclaredRuntimeVersions(
+            const RC::UNBSE::OBSE64::FPluginScanResult& Plugin) -> std::wstring
+    {
+        std::wstring Result{};
+        for (const auto Version : Plugin.Version.CompatibleVersions)
+        {
+            if (Version == 0)
+            {
+                continue;
+            }
+            if (!Result.empty())
+            {
+                Result.append(L", ");
+            }
+            Result.append(FormatRuntimeVersion(Version));
+        }
+        return Result.empty() ? L"none" : Result;
+    }
+
+    auto PluginExplicitlySupportsRuntime(
+            const RC::UNBSE::OBSE64::FPluginScanResult& Plugin,
+            const std::uint32_t RuntimeVersion) -> bool
+    {
+        return Plugin.Status == RC::UNBSE::OBSE64::EPluginScanStatus::Ok &&
+               RuntimeVersion != 0 &&
+               std::find(Plugin.Version.CompatibleVersions.begin(),
+                         Plugin.Version.CompatibleVersions.end(), RuntimeVersion) !=
+                       Plugin.Version.CompatibleVersions.end();
+    }
+
+    auto ReviewPluginVersions(const fs::path& GameDirectory)
+            -> std::vector<FPluginPreflightWarning>
+    {
+        namespace OBSE64 = RC::UNBSE::OBSE64;
+        const auto PluginDirectory = GameDirectory / L"OBSE" / L"Plugins";
+        std::vector<fs::path> Paths{};
+        std::error_code Error{};
+        if (!fs::exists(PluginDirectory, Error) && !Error)
+        {
+            return {};
+        }
+        for (fs::directory_iterator Iterator{PluginDirectory, Error}, End;
+             !Error && Iterator != End; Iterator.increment(Error))
+        {
+            if (!Iterator->is_regular_file(Error))
+            {
+                continue;
+            }
+            auto Extension = ToLower(Iterator->path().extension().wstring());
+            if (Extension == L".dll")
+            {
+                Paths.push_back(Iterator->path());
+            }
+        }
+        if (Error)
+        {
+            return {{L"OBSE plugin directory", L"unknown", PluginDirectory,
+                     L"could not be enumerated safely (Windows error " +
+                             std::to_wstring(Error.value()) + L")",
+                     L"unknown", L""}};
+        }
+        std::sort(Paths.begin(), Paths.end());
+
+        std::vector<FPluginPreflightWarning> Warnings{};
+        for (const auto& Path : Paths)
+        {
+            const auto Plugin = OBSE64::ScanPlugin(Path);
+            if (Plugin.Status != OBSE64::EPluginScanStatus::Ok)
+            {
+                Warnings.push_back(
+                        {Path.stem().wstring(), L"unknown", Path,
+                         L"does not contain a readable OBSE64 v1 declaration (" +
+                                 Utf8ToWide(OBSE64::PluginScanStatusName(Plugin.Status)) +
+                                 L")",
+                         L"unknown", Sha256File(Path)});
+                continue;
+            }
+
+            std::wstring Reason{};
+            if (!Plugin.HasLoad)
+            {
+                Reason = L"does not export the required OBSEPlugin_Load entry point";
+            }
+            else if (!PluginExplicitlySupportsRuntime(Plugin, SupportedRuntimeVersion))
+            {
+                const auto HasDeclaredVersion = std::any_of(
+                        Plugin.Version.CompatibleVersions.begin(),
+                        Plugin.Version.CompatibleVersions.end(),
+                        [](const std::uint32_t Version) { return Version != 0; });
+                if (HasDeclaredVersion)
+                {
+                    Reason = L"has a version-specific declaration that excludes game version ";
+                }
+                else if ((Plugin.Version.AddressIndependence &
+                          OBSE64::AddressIndependenceSignatures) != 0)
+                {
+                    Reason = L"claims signature-based version independence but does not "
+                             L"explicitly declare game version ";
+                }
+                else if ((Plugin.Version.AddressIndependence &
+                          OBSE64::AddressIndependenceAddressLibrary) != 0)
+                {
+                    Reason = L"claims address-library version independence but does not "
+                             L"explicitly declare game version ";
+                }
+                else
+                {
+                    Reason = L"does not explicitly declare support for game version ";
+                }
+                Reason.append(FormatRuntimeVersion(SupportedRuntimeVersion));
+            }
+            if (Reason.empty())
+            {
+                continue;
+            }
+            Warnings.push_back(
+                    {Utf8ToWide(Plugin.Name),
+                     Plugin.Author.empty() ? L"unknown" : Utf8ToWide(Plugin.Author), Path,
+                     std::move(Reason),
+                     DeclaredRuntimeVersions(Plugin), Sha256File(Path)});
+        }
+        return Warnings;
+    }
+
+    auto WarningAcceptancePath() -> std::optional<fs::path>
+    {
+        const auto Required = GetEnvironmentVariableW(L"LOCALAPPDATA", nullptr, 0);
+        if (Required == 0)
+        {
+            return std::nullopt;
+        }
+        std::vector<wchar_t> Buffer(Required);
+        if (GetEnvironmentVariableW(L"LOCALAPPDATA", Buffer.data(), Required) == 0)
+        {
+            return std::nullopt;
+        }
+        return fs::path{Buffer.data()} / L"UNBSE" /
+               L"accepted-plugin-version-warnings-v1.txt";
+    }
+
+    auto LoadAcceptedPluginWarnings(const std::wstring_view RuntimeHash)
+            -> std::unordered_set<std::wstring>
+    {
+        std::unordered_set<std::wstring> Result{};
+        const auto Path = WarningAcceptancePath();
+        if (!Path)
+        {
+            return Result;
+        }
+        std::wifstream Input{*Path};
+        std::wstring RecordedRuntimeHash{};
+        std::wstring PluginHash{};
+        while (Input >> RecordedRuntimeHash >> PluginHash)
+        {
+            if (RecordedRuntimeHash == RuntimeHash)
+            {
+                Result.insert(std::move(PluginHash));
+            }
+        }
+        return Result;
+    }
+
+    auto PendingPluginWarnings(const std::vector<FPluginPreflightWarning>& Warnings,
+                               const std::wstring_view RuntimeHash)
+            -> std::vector<FPluginPreflightWarning>
+    {
+        const auto Accepted = LoadAcceptedPluginWarnings(RuntimeHash);
+        std::vector<FPluginPreflightWarning> Result{};
+        std::copy_if(Warnings.begin(), Warnings.end(), std::back_inserter(Result),
+                     [&Accepted](const FPluginPreflightWarning& Warning) {
+                         return Warning.Fingerprint.empty() ||
+                                Accepted.find(Warning.Fingerprint) == Accepted.end();
+                     });
+        return Result;
+    }
+
+    auto RememberPluginWarnings(
+            const std::vector<FPluginPreflightWarning>& Warnings,
+            const std::wstring_view RuntimeHash) -> void
+    {
+        if (Warnings.empty())
+        {
+            return;
+        }
+        const auto Path = WarningAcceptancePath();
+        if (!Path)
+        {
+            std::wcerr << L"WARNING: LOCALAPPDATA is unavailable; plugin warning choices "
+                          L"cannot be remembered.\n";
+            return;
+        }
+        auto Accepted = LoadAcceptedPluginWarnings(RuntimeHash);
+        for (const auto& Warning : Warnings)
+        {
+            if (!Warning.Fingerprint.empty())
+            {
+                Accepted.insert(Warning.Fingerprint);
+            }
+        }
+        std::error_code Error{};
+        fs::create_directories(Path->parent_path(), Error);
+        if (Error)
+        {
+            std::wcerr << L"WARNING: Unable to create the UNBSE warning-state directory.\n";
+            return;
+        }
+        std::wofstream Output{*Path, std::ios::trunc};
+        if (!Output)
+        {
+            std::wcerr << L"WARNING: Unable to remember plugin warning choices.\n";
+            return;
+        }
+        for (const auto& Fingerprint : Accepted)
+        {
+            Output << RuntimeHash << L' ' << Fingerprint << L'\n';
+        }
+    }
+
+    auto PrintPluginVersionWarnings(
+            const std::vector<FPluginPreflightWarning>& Warnings) -> void
+    {
+        for (const auto& Warning : Warnings)
+        {
+            std::wcerr << L"WARNING: Invalid Version Mod: \"" << Warning.Name << L"\"\n"
+                       << L"  Author: " << Warning.Author << L"\n"
+                       << L"  " << Warning.Reason << L". This may cause crashes.\n"
+                       << L"  File: " << Warning.Path << L"\n"
+                       << L"  Declared game versions: " << Warning.DeclaredVersions << L"\n";
+        }
+    }
+
+    auto ConfirmPluginVersionWarnings(
+            const std::vector<FPluginPreflightWarning>& Warnings) -> bool
+    {
+        if (Warnings.empty())
+        {
+            return true;
+        }
+        std::wostringstream Text{};
+        constexpr std::size_t MaximumDisplayedWarnings = 20;
+        const auto Displayed = std::min(Warnings.size(), MaximumDisplayedWarnings);
+        for (std::size_t Index = 0; Index < Displayed; ++Index)
+        {
+            const auto& Warning = Warnings[Index];
+            Text << L"Invalid Version Mod: \"" << Warning.Name << L"\"\n"
+                 << L"Author: " << Warning.Author << L"\n"
+                 << Warning.Reason << L". This may cause crashes.\n"
+                 << L"File: " << Warning.Path.filename().wstring() << L"\n"
+                 << L"Declared game versions: " << Warning.DeclaredVersions << L"\n\n";
+        }
+        if (Warnings.size() > Displayed)
+        {
+            Text << L"...and " << (Warnings.size() - Displayed)
+                 << L" more plugin warning(s).\n\n";
+        }
+        Text << L"Please update these mods or send this report to their mod authors.\n\n"
+                L"Launch anyway? Choosing Yes remembers these exact DLL versions; "
+                L"updated DLLs are checked again.";
+        return MessageBoxW(nullptr, Text.str().c_str(),
+                           L"UNBSE - Invalid Version Mod Warning",
+                           MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2 | MB_SETFOREGROUND) ==
+               IDYES;
+    }
+
     auto FindRemoteModule(const DWORD ProcessId, const std::wstring_view ModuleName)
             -> std::optional<std::uintptr_t>
     {
@@ -669,11 +978,22 @@ auto wmain(const int ArgumentCount, wchar_t** Arguments) -> int
                    << (ExactGame ? L"exact hash verified" : L"unverified attempt") << L")\n"
                    << L"Game: " << *Game << L"\n"
                    << L"UE4SS: " << UE4SS << L"\n";
+        const auto PluginWarnings = ReviewPluginVersions(GameDirectory);
         if (Options.ValidateOnly)
         {
-            std::wcout << L"PASS: discovery and pinned-runtime validation succeeded.\n";
+            PrintPluginVersionWarnings(PluginWarnings);
+            std::wcout << L"PASS: discovery and pinned-runtime validation succeeded; "
+                       << PluginWarnings.size() << L" plugin warning(s) reported.\n";
             return 0;
         }
+        const auto PendingWarnings = PendingPluginWarnings(PluginWarnings, GameHash);
+        PrintPluginVersionWarnings(PendingWarnings);
+        if (!ConfirmPluginVersionWarnings(PendingWarnings))
+        {
+            std::wcerr << L"CANCELLED: game launch stopped at the plugin-version warning.\n";
+            return 7;
+        }
+        RememberPluginWarnings(PendingWarnings, GameHash);
 
         auto GameArguments = Options.GameArguments;
         if (std::find(GameArguments.begin(), GameArguments.end(), L"--disable-ue4ss") ==

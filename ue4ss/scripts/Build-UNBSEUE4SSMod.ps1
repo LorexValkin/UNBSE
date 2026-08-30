@@ -284,12 +284,25 @@ try {
         '--target', [string]$interop.target,
         '--parallel', [string]$Parallel
     )
+    $hostArtifact = Assert-UNBSENoReparsePath (Get-UNBSEBuildCanonicalPath (
+        Join-Path $build "$($manifest.unbseMod.buildConfiguration)\bin\UE4SS.dll") -MustExist)
+    $hostHash = Get-UNBSEHash $hostArtifact
+    $hostBytes = [long](Get-Item -LiteralPath $hostArtifact).Length
+    $hostImage = [IO.File]::ReadAllBytes($hostArtifact)
+    $hostWideText = [Text.Encoding]::Unicode.GetString($hostImage)
+    if (-not $hostWideText.Contains('[UE4SS.CppModLifecycle]')) {
+        throw 'Built UE4SS host does not contain the required lifecycle instrumentation marker.'
+    }
+    $hostImage = $null
+    $hostWideText = $null
     New-Item -ItemType Directory -Path $loaderBuild -Force | Out-Null
     Invoke-UNBSENative cmake @(
         '-S', $loaderSource,
         '-B', $loaderBuild,
         '-G', 'Visual Studio 17 2022',
-        '-A', 'x64'
+        '-A', 'x64',
+        "-DUNBSE_EXPECTED_UE4SS_SHA256=$hostHash",
+        "-DUNBSE_EXPECTED_UE4SS_BYTES=$hostBytes"
     )
     Invoke-UNBSENative cmake @(
         '--build', $loaderBuild,
@@ -325,6 +338,9 @@ $loaderArtifact = Assert-UNBSENoReparsePath `
     (Get-UNBSEBuildCanonicalPath $loaderArtifact -MustExist)
 $loaderHash = Get-UNBSEHash $loaderArtifact
 $loaderBytes = (Get-Item -LiteralPath $loaderArtifact).Length
+$hostPackageDll = Join-Path $package 'ue4ss\UE4SS.dll'
+New-Item -ItemType Directory -Path (Split-Path $hostPackageDll -Parent) -Force | Out-Null
+Copy-Item -LiteralPath $hostArtifact -Destination $hostPackageDll -Force
 $packageDll = Join-Path $package $manifest.unbseMod.packageDll
 New-Item -ItemType Directory -Path (Split-Path $packageDll -Parent) -Force | Out-Null
 Copy-Item -LiteralPath $artifact -Destination $packageDll -Force
@@ -418,6 +434,12 @@ $packageManifest = [ordered]@{
         }
     })
     runtimeRole = 'capability-injector'
+    patchedFoundation = [ordered]@{
+        relativePath = 'ue4ss/UE4SS.dll'
+        sha256 = $hostHash
+        bytes = $hostBytes
+        requiredCapabilityMarkers = @('UE4SS.CppModLifecycle')
+    }
     requiredExports = @($manifest.unbseMod.requiredExports)
     launcher = [ordered]@{
         name = [string]$loader.name
@@ -482,6 +504,11 @@ $packageManifest = [ordered]@{
             relativePath = [string]$loader.packageExecutable
             sha256 = $loaderHash
             bytes = $loaderBytes
+        },
+        [ordered]@{
+            relativePath = 'ue4ss/UE4SS.dll'
+            sha256 = $hostHash
+            bytes = $hostBytes
         }
     ) + $sdkArtifacts
 }
@@ -505,5 +532,7 @@ $packageManifestPath = Join-Path $package 'unbse-mod-manifest.json'
     Obse64InteropDllBytes = $interopDllBytes
     LoaderSha256 = $loaderHash
     LoaderBytes = $loaderBytes
+    PatchedHostSha256 = $hostHash
+    PatchedHostBytes = $hostBytes
     PackageManifest = $packageManifestPath
 } | ConvertTo-Json -Compress

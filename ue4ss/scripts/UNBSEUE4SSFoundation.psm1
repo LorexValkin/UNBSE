@@ -121,7 +121,12 @@ function Get-UNBSEFoundationAudit {
         } else { [long]$artifact.bytes }
         $sourceFile=Join-Path $source $sourceRelative; $targetFile=Join-Path $game $targetRelative
         $err=Test-UNBSEExactFile $sourceFile $artifact.sha256 ([long]$artifact.bytes) "Source artifact $($artifact.relativePath)"; if ($err) {$errors.Add($err)}
-        $err=Test-UNBSEExactFile $targetFile $targetSha256 $targetBytes "Target artifact $targetRelative"; if ($err) {$errors.Add($err)}
+        $targetManagedByCorePackage =
+            $artifact.PSObject.Properties.Name -contains 'targetManagedByCorePackage' -and
+            [bool]$artifact.targetManagedByCorePackage
+        if (-not $targetManagedByCorePackage) {
+            $err=Test-UNBSEExactFile $targetFile $targetSha256 $targetBytes "Target artifact $targetRelative"; if ($err) {$errors.Add($err)}
+        }
     }
     $ini=ConvertFrom-UNBSEIni (Join-Path $game 'ue4ss/UE4SS-settings.ini') $required
     foreach($x in $ini.Errors){$errors.Add($x)}

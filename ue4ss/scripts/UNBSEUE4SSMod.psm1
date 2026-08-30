@@ -160,6 +160,7 @@ function Get-UNBSEUE4SSModAudit {
         [string]$interop.enabledFile,
         'ue4ss/Mods/UNBSEOBSE64Interop/Scripts/main.lua',
         [string]$loader.packageExecutable,
+        'ue4ss/UE4SS.dll',
         'ue4ss/Mods/UNBSE/sdk/UNBSEAddonHostV1.h',
         'ue4ss/Mods/UNBSE/sdk/UNBSEScriptServiceV1.h',
         'ue4ss/Mods/UNBSE/sdk/UNBSEMessagingV1.h',
@@ -173,11 +174,23 @@ function Get-UNBSEUE4SSModAudit {
             ($expectedRelativePaths -join "`n")) {
         $errors.Add('Package artifact list or order is unsupported.')
     }
+    $hostArtifact = @($expectedArtifacts | Where-Object {
+        [string]$_.relativePath -ceq 'ue4ss/UE4SS.dll'
+    })
+    if ($hostArtifact.Count -ne 1 -or
+        [string]$packageManifest.patchedFoundation.relativePath -cne 'ue4ss/UE4SS.dll' -or
+        [string]$packageManifest.patchedFoundation.sha256 -cne [string]$hostArtifact[0].sha256 -or
+        [long]$packageManifest.patchedFoundation.bytes -ne [long]$hostArtifact[0].bytes -or
+        (@($packageManifest.patchedFoundation.requiredCapabilityMarkers) -join "`n") -cne
+            'UE4SS.CppModLifecycle') {
+        $errors.Add('Package patched UE4SS foundation contract is unsupported.')
+    }
     foreach ($artifact in $expectedArtifacts) {
         $relative = [string]$artifact.relativePath
         $ownedPath = $relative.StartsWith('ue4ss/Mods/UNBSE/', [StringComparison]::Ordinal) -or
             $relative.StartsWith('ue4ss/Mods/UNBSEOBSE64Interop/', [StringComparison]::Ordinal) -or
-            $relative -ceq [string]$loader.packageExecutable
+            $relative -ceq [string]$loader.packageExecutable -or
+            $relative -ceq 'ue4ss/UE4SS.dll'
         if ([IO.Path]::IsPathRooted($relative) -or $relative.Contains('..') -or -not $ownedPath) {
             $errors.Add("Package artifact path is unsafe: $relative")
             continue
