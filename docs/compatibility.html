@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Public UNBSE checklist for repaired and verified OBSE64 plugins on Oblivion Remastered 1.512.105.0.">
+  <title>OBSE64 Compatibility Checklist · UNBSE</title>
+  <script>
+    try {
+      const savedTheme = localStorage.getItem('unbse-theme');
+      if (savedTheme === 'light' || savedTheme === 'dark') {
+        document.documentElement.dataset.theme = savedTheme;
+      }
+    } catch (_) {}
+  </script>
+  <link rel="stylesheet" href="styles.css">
+  <script src="site.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="./" aria-label="UNBSE developer documentation home">
+        <span class="brand-mark" aria-hidden="true">U</span>
+        <span>UNBSE <small>Developers</small></span>
+      </a>
+      <nav class="primary-nav" aria-label="Primary navigation">
+        <a href="./">Overview</a>
+        <a href="plugin-development.html">Guides</a>
+        <a aria-current="page" href="compatibility.html">Compatibility</a>
+        <a href="api-reference.html">API reference</a>
+        <a href="api-reference.html#sdk-headers">SDK headers</a>
+        <a href="https://github.com/LorexValkin/UNBSE">GitHub</a>
+      </nav>
+      <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch color theme">
+        <span aria-hidden="true" data-theme-icon>◐</span>
+        <span data-theme-label>Theme</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="release-strip" role="status">
+    <div>
+      <span class="status-dot" aria-hidden="true"></span>
+      Compatibility progress
+      <span aria-hidden="true">·</span>
+      1 verified OBSE64 plugin repair
+      <span aria-hidden="true">·</span>
+      Steam runtime 1.512.105.0 only
+    </div>
+  </div>
+
+  <main id="main-content" class="guide-layout">
+    <aside class="guide-toc" aria-label="Compatibility checklist contents">
+      <p class="sidebar-label">On this page</p>
+      <nav aria-label="Compatibility sections">
+        <a href="#status-meaning">Status meaning</a>
+        <a href="#verified-repairs">Verified repairs</a>
+        <a href="#requirements">Requirements</a>
+        <a href="#proof">Proof recorded</a>
+        <a href="#acceptance">Acceptance checklist</a>
+      </nav>
+    </aside>
+
+    <article class="guide-content">
+      <header class="page-intro">
+        <p class="eyebrow">OBSE64 compatibility</p>
+        <h1>Plugin repair progress</h1>
+        <p class="lede">
+          Public, plugin-by-plugin results for legacy OBSE64 plugins tested through
+          UNBSE on the current Oblivion Remastered Steam runtime.
+        </p>
+      </header>
+
+      <div class="notice warning">
+        <strong>Current runtime only.</strong>
+        <p>
+          Every result on this page is limited to
+          <code>OblivionRemastered-Win64-Shipping.exe 1.512.105.0</code>.
+          A checked plugin is not a claim about older game builds, other plugin
+          versions, or every feature the plugin exposes.
+        </p>
+      </div>
+
+      <section id="status-meaning">
+        <p class="eyebrow">How to read the list</p>
+        <h2>Status meaning</h2>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Status</th><th>Meaning</th></tr></thead>
+            <tbody>
+              <tr><td><strong>☑ Repaired and verified</strong></td><td>A UNBSE compatibility defect was fixed and the named plugin completed a supervised retail in-game behavior test.</td></tr>
+              <tr><td><strong>☐ In review</strong></td><td>A reproducible issue exists, but the repair has not completed the full acceptance checklist.</td></tr>
+              <tr><td><strong>Not tested</strong></td><td>No compatibility statement is available. Absence from this page never means compatible.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The current repair is committed as an unreleased development change; no new release version is assigned by this checklist.</p>
+      </section>
+
+      <section id="verified-repairs">
+        <p class="eyebrow">Completed</p>
+        <h2>Verified repairs</h2>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr><th>Plugin</th><th>Status</th><th>Requirement</th><th>Verified behavior</th><th>Last verified</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Game Settings Loader 1.1.0.0</strong></td>
+                <td>☑ Repaired and verified</td>
+                <td>Address Library v2 table for <code>1.512.105.0</code></td>
+                <td>Query/load, zero-byte trampoline request, configuration discovery, <code>DataLoaded</code>, and a visible runtime game-setting change</td>
+                <td>2026-08-30</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="requirements">
+        <p class="eyebrow">Dependency clarity</p>
+        <h2>Verified requirements</h2>
+        <div class="notice info">
+          <strong>Address Library is a requirement, not a repaired plugin.</strong>
+          <p>
+            The supplied all-in-one v2 archive included
+            <code>versionlib-1-512-105-0.bin</code>. Its presence was verified during
+            the Game Settings Loader test, but it is not counted as a second OBSE64
+            plugin repair.
+          </p>
+        </div>
+      </section>
+
+      <section id="proof">
+        <p class="eyebrow">Retail evidence</p>
+        <h2>What the completed test proved</h2>
+        <ul>
+          <li>The original failure was <code>REL/Trampoline.cpp(101): cannot create a trampoline with a zero size</code>.</li>
+          <li>Game Settings Loader requested trampoline support without reserving bytes.</li>
+          <li>UNBSE now treats a zero-byte branch-pool allocation as a non-consuming request for the current pool cursor, matching the legacy OBSE64 contract.</li>
+          <li>The retail log reported exact runtime-anchor verification, compatibility verified, plugin loaded, trampoline available, and zero load failures.</li>
+          <li>The plugin parsed one INI setting and logged <code>fJumpHeightMin = 64 -&gt; 128</code>, then <code>64 -&gt; 256</code> on a second launch.</li>
+          <li>The larger jump was observed in game, <code>DataLoaded</code> fired, and the test session completed without the startup crash.</li>
+        </ul>
+        <p>
+          Evidence level: supervised local retail in-game proof. Raw logs and test
+          fixtures remain outside the public release contents.
+        </p>
+      </section>
+
+      <section id="acceptance">
+        <p class="eyebrow">Promotion gate</p>
+        <h2>Checklist for each future plugin</h2>
+        <ul>
+          <li>☑ Record the exact game, plugin, and requirement versions.</li>
+          <li>☑ Reproduce the original failure before changing UNBSE.</li>
+          <li>☑ Keep the repair bounded to the legacy interface behavior the plugin uses.</li>
+          <li>☑ Verify query, load, required messages, and trampoline behavior as applicable.</li>
+          <li>☑ Exercise at least one visible or logged plugin feature in the retail game.</li>
+          <li>☑ Confirm zero load failures and no crash during the supervised test.</li>
+          <li>☑ Publish only the compatibility result and production change—not raw captures or proof fixtures.</li>
+        </ul>
+        <p>No additional third-party OBSE64 plugins are marked verified yet.</p>
+      </section>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div>
+      <p>Compatibility results for UNBSE · Steam runtime 1.512.105.0</p>
+      <nav aria-label="Footer navigation">
+        <a href="./">Overview</a>
+        <a href="plugin-development.html">Plugin guide</a>
+        <a href="api-reference.html">API reference</a>
+        <a href="https://github.com/LorexValkin/UNBSE">Source</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>
