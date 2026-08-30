@@ -10,7 +10,7 @@
   --brand: #2854c5;
   --brand-strong: #183d9c;
   --brand-soft: #e7edff;
-  --accent: #0a7b6f;
+  --accent: #2854c5;
   --line: #d9dfe9;
   --line-strong: #bdc7d6;
   --code-text: #21325b;
@@ -20,7 +20,6 @@
   --warning: #955800;
   --warning-soft: #fff1d6;
   --danger: #a63333;
-  --shadow: 0 12px 32px rgba(28, 41, 61, 0.08);
   --header-height: 4.25rem;
   --content-width: 82rem;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -38,7 +37,7 @@
   --brand: #89a8ff;
   --brand-strong: #b3c5ff;
   --brand-soft: #1d2b4e;
-  --accent: #64cfbe;
+  --accent: #89a8ff;
   --line: #293444;
   --line-strong: #3b485b;
   --code-text: #d7e2ff;
@@ -48,7 +47,6 @@
   --warning: #ffc56d;
   --warning-soft: #3a2b13;
   --danger: #ff9b9b;
-  --shadow: 0 18px 38px rgba(0, 0, 0, 0.28);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -64,7 +62,7 @@
     --brand: #89a8ff;
     --brand-strong: #b3c5ff;
     --brand-soft: #1d2b4e;
-    --accent: #64cfbe;
+    --accent: #89a8ff;
     --line: #293444;
     --line-strong: #3b485b;
     --code-text: #d7e2ff;
@@ -74,7 +72,6 @@
     --warning: #ffc56d;
     --warning-soft: #3a2b13;
     --danger: #ff9b9b;
-    --shadow: 0 18px 38px rgba(0, 0, 0, 0.28);
   }
 }
 
@@ -157,9 +154,8 @@ a {
   z-index: 20;
   top: 0;
   min-height: var(--header-height);
-  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  background: var(--surface);
   border-bottom: 1px solid var(--line);
-  backdrop-filter: blur(14px);
 }
 
 .header-inner {
@@ -202,9 +198,8 @@ a {
   height: 2rem;
   place-items: center;
   color: #ffffff;
-  background: linear-gradient(145deg, #406edf, #183d9c);
+  background: #2854c5;
   border-radius: 0.48rem;
-  box-shadow: 0 5px 12px rgba(34, 75, 180, 0.24);
 }
 
 .primary-nav {
@@ -276,7 +271,6 @@ a {
   height: 0.48rem;
   background: var(--success);
   border-radius: 50%;
-  box-shadow: 0 0 0 0.2rem var(--success-soft);
 }
 
 .home-main {
@@ -383,7 +377,6 @@ h3 {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 0.7rem;
-  box-shadow: var(--shadow);
 }
 
 .quickstart-card > p {
@@ -540,10 +533,8 @@ pre code {
 }
 
 .surface-card.featured {
-  background:
-    linear-gradient(135deg, var(--brand-soft), transparent 70%),
-    var(--surface);
-  border-color: color-mix(in srgb, var(--brand) 35%, var(--line));
+  background: var(--surface);
+  border-color: var(--line);
 }
 
 .surface-card h3,
