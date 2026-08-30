@@ -106,7 +106,7 @@ $foundationArchive = Assert-UNBSENoReparsePath $FoundationArchivePath
 $corePackage = Assert-UNBSENoReparsePath $CorePackageRoot
 $manifest = Get-Content -LiteralPath $manifestFile -Raw | ConvertFrom-Json
 $version = [string]$manifest.unbseMod.version
-if ($version -cne '0.11.0-rc.1') {
+if ($version -cne '0.12.0') {
     throw "Unexpected release version: $version"
 }
 if ((Get-Item -LiteralPath $foundationArchive).Length -ne
@@ -131,12 +131,11 @@ $foundationStage = Join-Path $stageRoot 'foundation'
 $dropInStage = Join-Path $stageRoot 'drop-in'
 $runtimeStage = Join-Path $stageRoot 'runtime-only'
 $modsStage = Join-Path $stageRoot 'mods-only'
-$mo2Stage = Join-Path $stageRoot 'mo2'
 $sourceStage = Join-Path $stageRoot 'source'
 
 try {
     New-Item -ItemType Directory -Path $foundationStage, $dropInStage, $runtimeStage,
-        $modsStage, $mo2Stage, $sourceStage -Force | Out-Null
+        $modsStage, $sourceStage -Force | Out-Null
     Expand-Archive -LiteralPath $foundationArchive -DestinationPath $foundationStage -Force
 
     foreach ($artifact in $manifest.requiredRuntimeArtifacts) {
@@ -198,53 +197,15 @@ try {
     Copy-DirectoryFiles -SourceDirectory $runtimeStage -DestinationDirectory $dropInStage
     Copy-DirectoryFiles -SourceDirectory $modsStage -DestinationDirectory $dropInStage
 
-    $mo2RuntimeRoot = Join-Path $mo2Stage 'Root\OblivionRemastered\Binaries\Win64'
-    $runtimePrefix = $runtimeStage.TrimEnd(
-        [IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar) +
-        [IO.Path]::DirectorySeparatorChar
-    foreach ($file in Get-ChildItem -LiteralPath $runtimeStage -File -Recurse) {
-        $relative = $file.FullName.Substring($runtimePrefix.Length).Replace('\', '/')
-        if ($relative -ceq 'dwmapi.dll' -or $relative -ceq 'UNBSE-README.md') {
-            continue
-        }
-        $destination = if ($relative.StartsWith('ue4ss/Mods/',
-                [StringComparison]::Ordinal)) {
-            Join-Path $mo2Stage ('UE4SS/' + $relative.Substring('ue4ss/Mods/'.Length))
-        } else {
-            Join-Path $mo2RuntimeRoot $relative
-        }
-        New-Item -ItemType Directory -Path (Split-Path $destination -Parent) -Force |
-            Out-Null
-        Copy-Item -LiteralPath $file.FullName -Destination $destination -Force
-    }
-    $modsPrefix = $modsStage.TrimEnd(
-        [IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar) +
-        [IO.Path]::DirectorySeparatorChar
-    foreach ($file in Get-ChildItem -LiteralPath $modsStage -File -Recurse) {
-        $relative = $file.FullName.Substring($modsPrefix.Length).Replace('\', '/')
-        if ($relative -ceq 'UNBSE-README.md') { continue }
-        if (-not $relative.StartsWith('ue4ss/Mods/', [StringComparison]::Ordinal)) {
-            throw "Unexpected mods-only package path: $relative"
-        }
-        $destination = Join-Path $mo2Stage (
-            'UE4SS/' + $relative.Substring('ue4ss/Mods/'.Length))
-        New-Item -ItemType Directory -Path (Split-Path $destination -Parent) -Force |
-            Out-Null
-        Copy-Item -LiteralPath $file.FullName -Destination $destination -Force
-    }
-    Copy-Item -LiteralPath (Join-Path $repositoryRoot 'README.md') `
-        -Destination (Join-Path $mo2Stage 'UNBSE-README.md') -Force
-
-    foreach ($stage in @($dropInStage, $runtimeStage, $modsStage, $mo2Stage)) {
-        Write-StageChecksums -StageDirectory $stage
-    }
+    Write-StageChecksums -StageDirectory $dropInStage
 
     $sourcePaths = @(
         @($manifest.unbseMod.sourceFiles | ForEach-Object { [string]$_.relativePath }) +
         @($manifest.unbseMod.obse64Interop.sourceFiles |
             ForEach-Object { [string]$_.relativePath }) +
         @($manifest.patchSet.patches | ForEach-Object { [string]$_.relativePath }) +
-        @('.gitattributes', 'README.md', 'ue4ss/foundation-manifest.json')
+        @('.gitattributes', 'README.md', 'docs/release-notes-0.12.0.md',
+            'ue4ss/foundation-manifest.json')
     ) | Sort-Object -Unique
     foreach ($relativePath in $sourcePaths) {
         Copy-RepositoryFile `
@@ -254,16 +215,10 @@ try {
     }
 
     $dropInZip = Join-Path $output "UNBSE-$version.zip"
-    $runtimeZip = Join-Path $output "UNBSE-$version-runtime.zip"
-    $modsZip = Join-Path $output "UNBSE-$version-mods.zip"
-    $mo2Zip = Join-Path $output "UNBSE-$version-mo2.zip"
     $sourceZip = Join-Path $output "UNBSE-$version-source.zip"
     New-ZipFromDirectory -SourceDirectory $dropInStage -DestinationPath $dropInZip
-    New-ZipFromDirectory -SourceDirectory $runtimeStage -DestinationPath $runtimeZip
-    New-ZipFromDirectory -SourceDirectory $modsStage -DestinationPath $modsZip
-    New-ZipFromDirectory -SourceDirectory $mo2Stage -DestinationPath $mo2Zip
     New-ZipFromDirectory -SourceDirectory $sourceStage -DestinationPath $sourceZip
-    $releaseChecksums = @($dropInZip, $runtimeZip, $modsZip, $mo2Zip, $sourceZip |
+    $releaseChecksums = @($dropInZip, $sourceZip |
         ForEach-Object {
         "$(Get-UNBSEHash $_)  $([IO.Path]::GetFileName($_))"
     })
@@ -276,10 +231,7 @@ try {
     [pscustomobject]@{
         Success = $true
         Version = $version
-        DropInArchive = $dropInZip
-        RuntimeArchive = $runtimeZip
-        ModsArchive = $modsZip
-        ModOrganizer2Archive = $mo2Zip
+        InstallArchive = $dropInZip
         SourceArchive = $sourceZip
         Checksums = $checksumPath
     } | ConvertTo-Json -Compress

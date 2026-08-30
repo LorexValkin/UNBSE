@@ -18,7 +18,7 @@ request only the runtime services they need.
 The documentation is kept with the source and is published as a static website
 from `main`, so the guide and machine-readable API describe the shipped SDK.
 
-The `0.11.0-rc.1` release targets only the current Steam executable,
+The `0.12.0` release targets only the current Steam executable,
 `OblivionRemastered-Win64-Shipping.exe` version `1.512.105.0`. UNBSE includes its
 clean-room OBSE64 interoperability module and discovers compatible native plugins
 from `OBSE/Plugins`. Compatibility is determined plugin by plugin; support for
@@ -32,7 +32,7 @@ limits.
 
 ## Install
 
-UNBSE `0.11.0-rc.1` targets only the Steam executable version `1.512.105.0`.
+UNBSE `0.12.0` targets only the Steam executable version `1.512.105.0`.
 The packaged UE4SS console is intentionally visible so its startup log, loaded
 mods, and UNBSE compatibility messages are immediately observable. The same log
 is retained in `ue4ss/UE4SS.log`.
@@ -41,9 +41,9 @@ Before any install, remove legacy `obse64_loader.exe`,
 `obse64_steam_loader.dll`, and the matching `obse64_*.dll` runtime from the
 game's `Win64` directory. Keep the existing `OBSE/Plugins` directory.
 
-### Manual or Vortex
+### One archive: manual, Vortex, or MO2
 
-Use the single `UNBSE-0.11.0-rc.1.zip` archive. For a manual install, extract it
+Use the single `UNBSE-0.12.0.zip` archive. For a manual install, extract it
 directly into `Oblivion Remastered/OblivionRemastered/Binaries/Win64`. Launch
 `UNBSELoader.exe` when you want the prelaunch plugin-version check; the normal
 Steam launch remains available. For Vortex, install and enable the same zip,
@@ -55,29 +55,38 @@ The drop-in archive includes the pinned UE4SS runtime, its standard Blueprint
 loader modules, the UNBSE core and interoperability module, SDK headers,
 `UNBSELoader.exe`, the package manifest, and checksums. It does not ship
 `mods.txt` or `mods.json`, so it does not overwrite a user's or manager's mod
-state. The optional `-runtime.zip` and `-mods.zip` contain those same two halves
-for troubleshooting or advanced installations; they are not needed for the
-normal one-archive Vortex workflow.
+state. This is the only install archive published for the release.
 
 ### Mod Organizer 2
 
-1. Install `UNBSE-0.11.0-rc.1-mo2.zip` as one MO2 mod and enable it. Its `Root`
-   and `UE4SS` directories are already arranged for the Oblivion Remastered
-   plugin; do not use Root Builder, rename `dwmapi.dll`, or configure a force
-   loaded library.
+1. Install the same `UNBSE-0.12.0.zip` as one MO2 mod, accept the Oblivion
+   Remastered plugin's automatic file-tree fix, and enable it. The plugin moves
+   the complete self-contained payload under `Root`; do not use Root Builder,
+   rename `dwmapi.dll`, or configure a force-loaded library.
 2. Add this installed file as an MO2 executable:
    `Root/OblivionRemastered/Binaries/Win64/UNBSELoader.exe`. No arguments or
    custom working directory are required. The launcher locates the Steam game,
    verifies the pinned runtime, waits for USVFS, and then loads UE4SS.
-3. Launch the new `UNBSE` executable from MO2. The two comment-only Lua stubs
-   make `UNBSE` and `UNBSEOBSE64Interop` visible to MO2's UE4SS tab; new mods are
-   enabled by the profile model automatically. Re-enable either entry only if
-   that profile had explicitly disabled it before.
+3. Launch the new `UNBSE` executable from MO2. Its sibling runtime and UNBSE
+   modules load from the physical `Root` payload, while the game process keeps
+   MO2's virtualized mod view. The patched host starts its two bundled foundation
+   modules independently of manager-controlled `enabled.txt` or `mods.txt`
+   state, so no UE4SS tab setup is required.
 
-Under MO2, `UE4SS.log` and crash dumps may be routed to Overwrite. The visible
-UE4SS console is the quickest check: it should show both `UNBSE` C++ mods
-starting. `UNBSELoader.exe --validate-only` performs discovery and hash checks
-without launching the game.
+Under MO2, the log is retained beside the physical runtime under the installed
+mod's `Root` tree. The visible UE4SS console is the quickest check: it should
+show both `UNBSE` C++ mods starting. `UNBSELoader.exe --validate-only` performs
+discovery and hash checks without launching the game.
+
+### Verify the active installation
+
+The upstream banner remains `UE4SS - v3.0.1 Beta #0 - Git SHA #68dd45c`
+because UNBSE builds from that pinned source revision. The banner alone cannot
+distinguish the patched host from the community package. A successful UNBSE
+startup also logs marker-independent starts for `UNBSE` and
+`UNBSEOBSE64Interop`, followed by `UE4SS.CppModLifecycle` and `UNBSE` records.
+If startup reaches `Event loop start` without those records, the active
+deployment is not running the UNBSE modules.
 
 ### Plugin-version warning
 
@@ -186,7 +195,6 @@ The first command rebuilds the patched UE4SS host, core, interoperability DLL,
 and native launcher. The package manifest pins that exact host and the launcher
 will reject a substituted host, ensuring the shipped runtime contains the
 `UE4SS.CppModLifecycle` diagnostic boundary.
-The second creates the drop-in, runtime-only, mods-only, MO2-native, and
-production-source archives plus `SHA256SUMS.txt`. UNBSE does not currently
-declare its own license; the bundled UE4SS license remains included with its
-runtime.
+The second creates one universal install archive, one production-source archive,
+and `SHA256SUMS.txt`. UNBSE does not currently declare its own license; the
+bundled UE4SS license remains included with its runtime.
