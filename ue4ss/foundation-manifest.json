@@ -179,11 +179,19 @@
       },
       {
         "relativePath": "ue4ss/loader/CMakeLists.txt",
-        "sha256": "C68E3E79DBEBF4B7F6C290A91A0180CBAA3A42DB912614E111BCDFF77044E9F8"
+        "sha256": "43918719970AFD8D2932B67FF6B184C213E230D9451D16533CE1301702DE3D43"
+      },
+      {
+        "relativePath": "ue4ss/loader/include/UNBSEAssetPreflight.hpp",
+        "sha256": "9D365A11F219E75EAA28A0D6E50FB553FEAF3E009F00480323D2C24BB13F1E5D"
       },
       {
         "relativePath": "ue4ss/loader/src/main.cpp",
-        "sha256": "EB06E2596D6E90302FD83D07FA14C046DE4C1C1E08567F220E34165D8E3F7835"
+        "sha256": "65AC30264D42C88AC5D947752962698CF49DDD24168862F6EC49424A8B2A648F"
+      },
+      {
+        "relativePath": "ue4ss/loader/src/UNBSEAssetPreflight.cpp",
+        "sha256": "A813569D99BA9E3CECA6149931BFBDE6CA09A7FC913149B332594E63515A1685"
       },
       {
         "relativePath": "ue4ss/mod/UNBSE/CMakeLists.txt",
@@ -243,7 +251,7 @@
       },
       {
         "relativePath": "ue4ss/scripts/Set-UNBSECoreManifestBoundary.ps1",
-        "sha256": "719C580FAE72B9D03FB1F9830680BA9674EEF2E5E22991DBEDB02EF7594B80EC"
+        "sha256": "6AAE02C9D0369811F9DB51E81303C0091CE68014C0CA58F66618C930ECFB3FA1"
       },
       {
         "relativePath": "ue4ss/scripts/UNBSEUE4SSFoundation.psm1",

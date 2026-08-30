@@ -19,9 +19,11 @@ set(UNBSE_OBSE64_INTEROP_ROOT
 
 add_executable(UNBSELoader
     src/main.cpp
+    src/UNBSEAssetPreflight.cpp
     "${UNBSE_OBSE64_INTEROP_ROOT}/src/OBSE64PluginScanner.cpp"
 )
 target_include_directories(UNBSELoader PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
     "${UNBSE_OBSE64_INTEROP_ROOT}/include"
 )
 target_compile_features(UNBSELoader PRIVATE cxx_std_20)

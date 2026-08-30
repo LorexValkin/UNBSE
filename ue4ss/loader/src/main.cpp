@@ -1,4 +1,5 @@
 #include <OBSE64PluginScanner.hpp>
+#include <UNBSEAssetPreflight.hpp>
 
 #include <Windows.h>
 #include <Psapi.h>
@@ -15,6 +16,7 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <limits>
 #include <optional>
 #include <span>
 #include <sstream>
@@ -235,6 +237,63 @@ namespace
         {
             throw std::runtime_error("BCryptFinishHash failed");
         }
+        return BytesToHex(Digest);
+    }
+
+    auto Sha256Text(const std::wstring_view Value) -> std::wstring
+    {
+        BCRYPT_ALG_HANDLE Algorithm{};
+        BCRYPT_HASH_HANDLE Hash{};
+        DWORD ObjectBytes{};
+        DWORD HashBytes{};
+        DWORD ResultBytes{};
+        std::vector<std::uint8_t> Object{};
+        std::vector<std::uint8_t> Digest{};
+        auto Cleanup = [&]() {
+            if (Hash)
+            {
+                BCryptDestroyHash(Hash);
+            }
+            if (Algorithm)
+            {
+                BCryptCloseAlgorithmProvider(Algorithm, 0);
+            }
+        };
+        if (!BCRYPT_SUCCESS(BCryptOpenAlgorithmProvider(
+                    &Algorithm, BCRYPT_SHA256_ALGORITHM, nullptr, 0)) ||
+            !BCRYPT_SUCCESS(BCryptGetProperty(
+                    Algorithm, BCRYPT_OBJECT_LENGTH,
+                    reinterpret_cast<PUCHAR>(&ObjectBytes), sizeof(ObjectBytes),
+                    &ResultBytes, 0)) ||
+            !BCRYPT_SUCCESS(BCryptGetProperty(
+                    Algorithm, BCRYPT_HASH_LENGTH,
+                    reinterpret_cast<PUCHAR>(&HashBytes), sizeof(HashBytes),
+                    &ResultBytes, 0)))
+        {
+            Cleanup();
+            throw std::runtime_error("Unable to initialize SHA-256 text hashing");
+        }
+        Object.resize(ObjectBytes);
+        Digest.resize(HashBytes);
+        if (!BCRYPT_SUCCESS(BCryptCreateHash(
+                    Algorithm, &Hash, Object.data(), static_cast<ULONG>(Object.size()),
+                    nullptr, 0, 0)))
+        {
+            Cleanup();
+            throw std::runtime_error("Unable to create SHA-256 text hash");
+        }
+        const auto Bytes = std::as_bytes(std::span{Value});
+        if (Bytes.size() > std::numeric_limits<ULONG>::max() ||
+            !BCRYPT_SUCCESS(BCryptHashData(
+                    Hash, reinterpret_cast<PUCHAR>(const_cast<std::byte*>(Bytes.data())),
+                    static_cast<ULONG>(Bytes.size()), 0)) ||
+            !BCRYPT_SUCCESS(BCryptFinishHash(
+                    Hash, Digest.data(), static_cast<ULONG>(Digest.size()), 0)))
+        {
+            Cleanup();
+            throw std::runtime_error("Unable to compute SHA-256 text hash");
+        }
+        Cleanup();
         return BytesToHex(Digest);
     }
 
@@ -701,6 +760,174 @@ namespace
                IDYES;
     }
 
+    struct FPendingAssetWarning
+    {
+        RC::UNBSE::Preflight::FAssetContainerWarning Warning{};
+        std::wstring Fingerprint{};
+    };
+
+    auto AssetWarningAcceptancePath() -> std::optional<fs::path>
+    {
+        auto Path = WarningAcceptancePath();
+        if (Path)
+        {
+            Path->replace_filename(L"accepted-asset-container-warnings-v1.txt");
+        }
+        return Path;
+    }
+
+    auto AssetWarningFingerprint(
+            const RC::UNBSE::Preflight::FAssetContainerWarning& Warning) -> std::wstring
+    {
+        if (Warning.FingerprintPrimaryFile)
+        {
+            try
+            {
+                return Sha256File(Warning.Path);
+            }
+            catch (const std::exception&)
+            {
+            }
+        }
+        return Sha256Text(Warning.FingerprintMaterial);
+    }
+
+    auto LoadAcceptedAssetWarnings(const std::wstring_view RuntimeHash)
+            -> std::unordered_set<std::wstring>
+    {
+        std::unordered_set<std::wstring> Result{};
+        const auto Path = AssetWarningAcceptancePath();
+        if (!Path)
+        {
+            return Result;
+        }
+        std::wifstream Input{*Path};
+        std::wstring RecordedRuntimeHash{};
+        std::wstring WarningHash{};
+        while (Input >> RecordedRuntimeHash >> WarningHash)
+        {
+            if (RecordedRuntimeHash == RuntimeHash)
+            {
+                Result.insert(std::move(WarningHash));
+            }
+        }
+        return Result;
+    }
+
+    auto PendingAssetWarnings(
+            const std::vector<RC::UNBSE::Preflight::FAssetContainerWarning>& Warnings,
+            const std::wstring_view RuntimeHash) -> std::vector<FPendingAssetWarning>
+    {
+        const auto Accepted = LoadAcceptedAssetWarnings(RuntimeHash);
+        std::vector<FPendingAssetWarning> Result{};
+        for (const auto& Warning : Warnings)
+        {
+            auto Fingerprint = AssetWarningFingerprint(Warning);
+            if (Accepted.find(Fingerprint) == Accepted.end())
+            {
+                Result.push_back({Warning, std::move(Fingerprint)});
+            }
+        }
+        return Result;
+    }
+
+    auto RememberAssetWarnings(const std::vector<FPendingAssetWarning>& Warnings,
+                               const std::wstring_view RuntimeHash) -> void
+    {
+        if (Warnings.empty())
+        {
+            return;
+        }
+        const auto Path = AssetWarningAcceptancePath();
+        if (!Path)
+        {
+            std::wcerr << L"WARNING: LOCALAPPDATA is unavailable; asset warning choices "
+                          L"cannot be remembered.\n";
+            return;
+        }
+        auto Accepted = LoadAcceptedAssetWarnings(RuntimeHash);
+        for (const auto& Warning : Warnings)
+        {
+            Accepted.insert(Warning.Fingerprint);
+        }
+        std::error_code Error{};
+        fs::create_directories(Path->parent_path(), Error);
+        if (Error)
+        {
+            std::wcerr << L"WARNING: Unable to create the UNBSE warning-state directory.\n";
+            return;
+        }
+        std::wofstream Output{*Path, std::ios::trunc};
+        if (!Output)
+        {
+            std::wcerr << L"WARNING: Unable to remember asset warning choices.\n";
+            return;
+        }
+        for (const auto& Fingerprint : Accepted)
+        {
+            Output << RuntimeHash << L' ' << Fingerprint << L'\n';
+        }
+    }
+
+    auto PrintAssetWarnings(
+            const std::vector<RC::UNBSE::Preflight::FAssetContainerWarning>& Warnings)
+            -> void
+    {
+        for (const auto& Warning : Warnings)
+        {
+            std::wcerr << L"WARNING: Invalid Asset Container: \"" << Warning.Name << L"\"\n"
+                       << L"  " << Warning.Reason
+                       << L". This may prevent mounting or cause deserialization crashes.\n"
+                       << L"  File: " << Warning.Path << L"\n"
+                       << L"  Evidence: " << Warning.Evidence << L"\n";
+        }
+    }
+
+    auto PrintPendingAssetWarnings(const std::vector<FPendingAssetWarning>& Warnings)
+            -> void
+    {
+        std::vector<RC::UNBSE::Preflight::FAssetContainerWarning> Values{};
+        Values.reserve(Warnings.size());
+        std::transform(Warnings.begin(), Warnings.end(), std::back_inserter(Values),
+                       [](const FPendingAssetWarning& Warning) {
+                           return Warning.Warning;
+                       });
+        PrintAssetWarnings(Values);
+    }
+
+    auto ConfirmAssetWarnings(const std::vector<FPendingAssetWarning>& Warnings) -> bool
+    {
+        if (Warnings.empty())
+        {
+            return true;
+        }
+        std::wostringstream Text{};
+        constexpr std::size_t MaximumDisplayedWarnings = 15;
+        const auto Displayed = std::min(Warnings.size(), MaximumDisplayedWarnings);
+        for (std::size_t Index = 0; Index < Displayed; ++Index)
+        {
+            const auto& Warning = Warnings[Index].Warning;
+            Text << L"Invalid Asset Container: \"" << Warning.Name << L"\"\n"
+                 << Warning.Reason
+                 << L". This may prevent mounting or cause deserialization crashes.\n"
+                 << L"File: " << Warning.Path.filename().wstring() << L"\n"
+                 << L"Evidence: " << Warning.Evidence << L"\n\n";
+        }
+        if (Warnings.size() > Displayed)
+        {
+            Text << L"...and " << (Warnings.size() - Displayed)
+                 << L" more asset-container warning(s).\n\n";
+        }
+        Text << L"Update or rebuild these asset mods for the current Oblivion Remastered "
+                L"runtime. Send this report to the mod authors.\n\n"
+                L"Launch anyway? Choosing Yes remembers this game/container evidence; "
+                L"changed containers are checked again.";
+        return MessageBoxW(nullptr, Text.str().c_str(),
+                           L"UNBSE - Asset Container Compatibility Warning",
+                           MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2 | MB_SETFOREGROUND) ==
+               IDYES;
+    }
+
     auto FindRemoteModule(const DWORD ProcessId, const std::wstring_view ModuleName)
             -> std::optional<std::uintptr_t>
     {
@@ -919,8 +1146,11 @@ namespace
     {
         std::wcout
                 << L"UNBSELoader [--game-exe <path>] [--validate-only] [--] [game args...]\n"
-                << L"Locates the current Steam game, validates the pinned UE4SS runtime, and "
-                   L"loads it after MO2's virtual filesystem is active.\n";
+                << L"Locates the current Steam game, validates the pinned UE4SS runtime, "
+                   L"statically checks native plugins and .pak/.utoc/.ucas containers, and "
+                   L"loads UE4SS after MO2's virtual filesystem is active.\n"
+                << L"--validate-only reports findings without showing a popup or launching "
+                   L"the game.\n";
     }
 } // namespace
 
@@ -979,11 +1209,22 @@ auto wmain(const int ArgumentCount, wchar_t** Arguments) -> int
                    << L"Game: " << *Game << L"\n"
                    << L"UE4SS: " << UE4SS << L"\n";
         const auto PluginWarnings = ReviewPluginVersions(GameDirectory);
+        const auto AssetReview =
+                RC::UNBSE::Preflight::ReviewAssetContainers(GameDirectory);
+        std::wcout << L"Asset containers: " << AssetReview.TocContainers << L" IoStore, "
+                   << AssetReview.PakContainers << L" pak; serialization header verified "
+                   << AssetReview.SerializationVersionsVerified << L", envelope-only "
+                   << AssetReview.SerializationVersionsUnverified
+                   << L"; pak index verified " << AssetReview.PakIndexesVerified
+                   << L", envelope-only " << AssetReview.PakIndexesUnverified << L".\n";
         if (Options.ValidateOnly)
         {
             PrintPluginVersionWarnings(PluginWarnings);
+            PrintAssetWarnings(AssetReview.Warnings);
             std::wcout << L"PASS: discovery and pinned-runtime validation succeeded; "
-                       << PluginWarnings.size() << L" plugin warning(s) reported.\n";
+                       << PluginWarnings.size() << L" plugin warning(s) and "
+                       << AssetReview.Warnings.size()
+                       << L" asset-container warning(s) reported.\n";
             return 0;
         }
         const auto PendingWarnings = PendingPluginWarnings(PluginWarnings, GameHash);
@@ -994,6 +1235,14 @@ auto wmain(const int ArgumentCount, wchar_t** Arguments) -> int
             return 7;
         }
         RememberPluginWarnings(PendingWarnings, GameHash);
+        const auto PendingAssets = PendingAssetWarnings(AssetReview.Warnings, GameHash);
+        PrintPendingAssetWarnings(PendingAssets);
+        if (!ConfirmAssetWarnings(PendingAssets))
+        {
+            std::wcerr << L"CANCELLED: game launch stopped at the asset-container warning.\n";
+            return 8;
+        }
+        RememberAssetWarnings(PendingAssets, GameHash);
 
         auto GameArguments = Options.GameArguments;
         if (std::find(GameArguments.begin(), GameArguments.end(), L"--disable-ue4ss") ==

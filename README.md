@@ -96,6 +96,29 @@ plugin is safe. Use `UNBSELoader.exe --validate-only` to print every current
 warning without showing a popup or launching the game. The acceptance file is
 stored under `%LOCALAPPDATA%\UNBSE`.
 
+### Asset-container warning
+
+The same prelaunch pass recursively checks the `.pak`, `.utoc`, and `.ucas`
+files visible under `OblivionRemastered/Content/Paks`, including files deployed
+by Vortex or exposed inside MO2's virtual game tree. It verifies IoStore magic,
+table bounds, container identity, required UCAS partitions, and the current
+retail TOC layout. For an uncompressed container-header chunk it also verifies
+the serialized `NoExportInfo` container-header version and identity. Pak files
+are checked for the current footer version, bounded index, and matching index
+SHA-1.
+
+An `Invalid Asset Container` warning appears before launch when that static
+evidence is malformed or differs from the current retail format. No is the
+default. Yes remembers the current game and container evidence in a separate
+file under `%LOCALAPPDATA%\UNBSE`; changed evidence is checked again. Containers
+whose header or pak index cannot be inspected within the bounded preflight are
+reported as `envelope-only`, not rejected merely for being unverifiable.
+
+This is a container-envelope and top-level serialization-header check. It does
+not deserialize every cooked package, validate every Unreal custom version or
+asset schema, or prove that a mod is behaviorally compatible. Use
+`UNBSELoader.exe --validate-only` to print the results without UI or launch.
+
 To remove UNBSE, delete `ue4ss/Mods/UNBSE` and
 `ue4ss/Mods/UNBSEOBSE64Interop`. Remove `dwmapi.dll` and `ue4ss/UE4SS.dll` only
 when no other installed mod uses UE4SS, and remove `UNBSELoader.exe`. Do not

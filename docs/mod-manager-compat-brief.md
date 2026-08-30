@@ -266,6 +266,27 @@ not the stock DLL from the pinned foundation archive. The package manifest and
 launcher must authenticate that exact host so the promised
 `UE4SS.CppModLifecycle` logging is actually present in field reports.
 
+## Follow-up: prelaunch asset-container guard
+
+The launcher recursively inspects `.pak`, `.utoc`, and `.ucas` files visible in
+the game's `Content/Paks` tree after a manager has established its deployment or
+virtual filesystem. The check must remain static: it does not mount containers
+or deserialize cooked game objects. It verifies the IoStore envelope and table
+bounds, TOC/UCAS pairing and partition sizes, duplicate container identities,
+the current retail TOC layout, and the uncompressed serialized container-header
+identity/version when accessible. It verifies pak footer/index bounds, the
+current retail pak version, and the footer's index SHA-1.
+
+Malformed or differing evidence produces a separate grouped `Invalid Asset
+Container` warning before launch. The default choice cancels launch. A continue
+choice is remembered separately from native-plugin choices and must be bound to
+the current game and container evidence so changed files are checked again.
+`--validate-only` prints all findings without UI or launch. A structurally valid
+container is not a compatibility verdict: this pass does not validate every
+cooked package, Unreal custom version, asset schema, reference, or gameplay
+behavior. A compressed header or deliberately bounded large pak index is
+reported as envelope-only instead of being rejected without evidence.
+
 ## Do not
 
 - Ship `ue4ss/Mods/mods.txt` in the drop-in (overwrites a manual user's load
