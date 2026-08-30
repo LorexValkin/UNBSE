@@ -4,6 +4,33 @@ Companion to `docs/mod-manager-compatibility-study.md` (full evidence and
 citations). This file is the hand-off for implementation work: what is broken,
 why, and what to build. Read the study for any "why" you need to verify.
 
+## Implementation decision (2026-08-30)
+
+The `feature/mod-manager-zero-touch-compat` implementation keeps W1, the useful
+parts of W2, and W4, but replaces the high-touch MO2 instructions in W3 with a
+single MO2-native archive and `UNBSELoader.exe`:
+
+- Manual and Vortex use the normal merged drop-in archive. Vortex therefore
+  requires one install, not separate runtime and mods installs.
+- MO2 installs one `-mo2.zip`. Its physical runtime lives under `Root/` beside
+  the launcher and its virtual mods live under the plugin's native `UE4SS/`
+  mapping. The only persistent MO2 setup is adding the launcher as an
+  executable; no proxy rename, force-load rule, or Root Builder is required.
+- The release still emits `-runtime.zip` and `-mods.zip` as diagnostic/advanced
+  components, but they are not the primary manager workflow.
+- No archive ships `mods.txt` or `mods.json`. Those are user/manager-owned state,
+  and overwriting them is unnecessary once W1 makes both C++ mods recognizable.
+- The pinned foundation's `BPML_GenericFunctions`, `BPModLoaderMod`, and required
+  `shared/UEHelpers` are included. This matches the useful runtime convention in
+  current Nexus mod 32 without importing that package's older UE4SS/proxy
+  binaries, PDB, load order, or configuration.
+- `Debug.ConsoleEnabled = 1` is an intentional UNBSE package override so the
+  version-specific RC startup log remains visible as well as written to disk.
+
+The original work items below remain the evidence-backed baseline and acceptance
+history; where they conflict with this decision, this section is authoritative
+for the implementation branch.
+
 ## Context
 
 - UNBSE `0.11.0-rc.1` = UE4SS proxy `dwmapi.dll` + pinned UE4SS runtime

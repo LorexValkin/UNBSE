@@ -63,6 +63,43 @@ function New-ZipFromDirectory {
         $false)
 }
 
+function Copy-DirectoryFiles {
+    param(
+        [Parameter(Mandatory)][string]$SourceDirectory,
+        [Parameter(Mandatory)][string]$DestinationDirectory
+    )
+
+    $sourcePrefix = $SourceDirectory.TrimEnd(
+        [IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar) +
+        [IO.Path]::DirectorySeparatorChar
+    foreach ($file in Get-ChildItem -LiteralPath $SourceDirectory -File -Recurse) {
+        $relative = $file.FullName.Substring($sourcePrefix.Length)
+        $destination = Join-Path $DestinationDirectory $relative
+        New-Item -ItemType Directory -Path (Split-Path $destination -Parent) -Force |
+            Out-Null
+        Copy-Item -LiteralPath $file.FullName -Destination $destination -Force
+    }
+}
+
+function Write-StageChecksums {
+    param([Parameter(Mandatory)][string]$StageDirectory)
+
+    $prefix = $StageDirectory.TrimEnd(
+        [IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar) +
+        [IO.Path]::DirectorySeparatorChar
+    $checksums = Get-ChildItem -LiteralPath $StageDirectory -File -Recurse |
+        Where-Object { $_.Name -cne 'UNBSE-SHA256SUMS.txt' } |
+        Sort-Object FullName |
+        ForEach-Object {
+            $relative = $_.FullName.Substring($prefix.Length).Replace('\', '/')
+            "$(Get-UNBSEHash $_.FullName)  $relative"
+        }
+    [IO.File]::WriteAllLines(
+        (Join-Path $StageDirectory 'UNBSE-SHA256SUMS.txt'),
+        $checksums,
+        [Text.UTF8Encoding]::new($false))
+}
+
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $manifestFile = Assert-UNBSENoReparsePath $ManifestPath
 $foundationArchive = Assert-UNBSENoReparsePath $FoundationArchivePath
@@ -91,48 +128,116 @@ $output = [IO.Path]::GetFullPath($OutputDirectory)
 New-Item -ItemType Directory -Path $output -Force | Out-Null
 $stageRoot = Join-Path $repositoryRoot "out\release-stage-$([guid]::NewGuid().ToString('N'))"
 $foundationStage = Join-Path $stageRoot 'foundation'
-$runtimeStage = Join-Path $stageRoot 'runtime'
+$dropInStage = Join-Path $stageRoot 'drop-in'
+$runtimeStage = Join-Path $stageRoot 'runtime-only'
+$modsStage = Join-Path $stageRoot 'mods-only'
+$mo2Stage = Join-Path $stageRoot 'mo2'
 $sourceStage = Join-Path $stageRoot 'source'
 
 try {
-    New-Item -ItemType Directory -Path $foundationStage, $runtimeStage, $sourceStage -Force |
-        Out-Null
+    New-Item -ItemType Directory -Path $foundationStage, $dropInStage, $runtimeStage,
+        $modsStage, $mo2Stage, $sourceStage -Force | Out-Null
     Expand-Archive -LiteralPath $foundationArchive -DestinationPath $foundationStage -Force
 
     foreach ($artifact in $manifest.requiredRuntimeArtifacts) {
+        $packageRelative = if ($artifact.PSObject.Properties.Name -contains
+            'packageRelativePath') {
+            [string]$artifact.packageRelativePath
+        } else { [string]$artifact.relativePath }
         Copy-VerifiedFile `
             -Source (Join-Path $foundationStage ([string]$artifact.relativePath)) `
-            -Destination (Join-Path $runtimeStage ([string]$artifact.relativePath)) `
+            -Destination (Join-Path $runtimeStage $packageRelative) `
             -Sha256 ([string]$artifact.sha256) `
             -Bytes ([long]$artifact.bytes)
+    }
+    $requiredSettings = @{}
+    $manifest.requiredSettings.psobject.Properties | ForEach-Object {
+        $requiredSettings[$_.Name] = [string]$_.Value
+    }
+    Set-UNBSERequiredIni `
+        -Path (Join-Path $runtimeStage 'ue4ss\UE4SS-settings.ini') `
+        -RequiredSettings $requiredSettings
+    foreach ($artifact in $manifest.requiredRuntimeArtifacts) {
+        $packageRelative = if ($artifact.PSObject.Properties.Name -contains
+            'packageRelativePath') {
+            [string]$artifact.packageRelativePath
+        } else { [string]$artifact.relativePath }
+        $packageSha256 = if ($artifact.PSObject.Properties.Name -contains
+            'packageSha256') {
+            [string]$artifact.packageSha256
+        } else { [string]$artifact.sha256 }
+        $packageBytes = if ($artifact.PSObject.Properties.Name -contains
+            'packageBytes') {
+            [long]$artifact.packageBytes
+        } else { [long]$artifact.bytes }
+        $packagedFile = Assert-UNBSENoReparsePath (Join-Path $runtimeStage $packageRelative)
+        if ((Get-Item -LiteralPath $packagedFile).Length -ne $packageBytes -or
+            (Get-UNBSEHash $packagedFile) -cne $packageSha256.ToUpperInvariant()) {
+            throw "Packaged runtime artifact differs from its pin: $packageRelative"
+        }
     }
     foreach ($artifact in $packageManifest.artifacts) {
+        $relative = [string]$artifact.relativePath
+        $destinationRoot = if ($relative.StartsWith(
+            'ue4ss/Mods/', [StringComparison]::Ordinal)) { $modsStage } else { $runtimeStage }
         Copy-VerifiedFile `
-            -Source (Join-Path $corePackage ([string]$artifact.relativePath)) `
-            -Destination (Join-Path $runtimeStage ([string]$artifact.relativePath)) `
+            -Source (Join-Path $corePackage $relative) `
+            -Destination (Join-Path $destinationRoot $relative) `
             -Sha256 ([string]$artifact.sha256) `
             -Bytes ([long]$artifact.bytes)
     }
-    $installedManifest = Join-Path $runtimeStage 'ue4ss\Mods\UNBSE\unbse-mod-manifest.json'
+    $installedManifest = Join-Path $modsStage 'ue4ss\Mods\UNBSE\unbse-mod-manifest.json'
     New-Item -ItemType Directory -Path (Split-Path $installedManifest -Parent) -Force |
         Out-Null
     Copy-Item -LiteralPath $packageManifestPath -Destination $installedManifest -Force
-    Copy-Item -LiteralPath (Join-Path $repositoryRoot 'README.md') `
-        -Destination (Join-Path $runtimeStage 'UNBSE-README.md') -Force
+    foreach ($stage in @($runtimeStage, $modsStage)) {
+        Copy-Item -LiteralPath (Join-Path $repositoryRoot 'README.md') `
+            -Destination (Join-Path $stage 'UNBSE-README.md') -Force
+    }
 
+    Copy-DirectoryFiles -SourceDirectory $runtimeStage -DestinationDirectory $dropInStage
+    Copy-DirectoryFiles -SourceDirectory $modsStage -DestinationDirectory $dropInStage
+
+    $mo2RuntimeRoot = Join-Path $mo2Stage 'Root\OblivionRemastered\Binaries\Win64'
     $runtimePrefix = $runtimeStage.TrimEnd(
         [IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar) +
         [IO.Path]::DirectorySeparatorChar
-    $runtimeChecksums = Get-ChildItem -LiteralPath $runtimeStage -File -Recurse |
-        Sort-Object FullName |
-        ForEach-Object {
-            $relative = $_.FullName.Substring($runtimePrefix.Length).Replace('\', '/')
-            "$(Get-UNBSEHash $_.FullName)  $relative"
+    foreach ($file in Get-ChildItem -LiteralPath $runtimeStage -File -Recurse) {
+        $relative = $file.FullName.Substring($runtimePrefix.Length).Replace('\', '/')
+        if ($relative -ceq 'dwmapi.dll' -or $relative -ceq 'UNBSE-README.md') {
+            continue
         }
-    [IO.File]::WriteAllLines(
-        (Join-Path $runtimeStage 'UNBSE-SHA256SUMS.txt'),
-        $runtimeChecksums,
-        [Text.UTF8Encoding]::new($false))
+        $destination = if ($relative.StartsWith('ue4ss/Mods/',
+                [StringComparison]::Ordinal)) {
+            Join-Path $mo2Stage ('UE4SS/' + $relative.Substring('ue4ss/Mods/'.Length))
+        } else {
+            Join-Path $mo2RuntimeRoot $relative
+        }
+        New-Item -ItemType Directory -Path (Split-Path $destination -Parent) -Force |
+            Out-Null
+        Copy-Item -LiteralPath $file.FullName -Destination $destination -Force
+    }
+    $modsPrefix = $modsStage.TrimEnd(
+        [IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar) +
+        [IO.Path]::DirectorySeparatorChar
+    foreach ($file in Get-ChildItem -LiteralPath $modsStage -File -Recurse) {
+        $relative = $file.FullName.Substring($modsPrefix.Length).Replace('\', '/')
+        if ($relative -ceq 'UNBSE-README.md') { continue }
+        if (-not $relative.StartsWith('ue4ss/Mods/', [StringComparison]::Ordinal)) {
+            throw "Unexpected mods-only package path: $relative"
+        }
+        $destination = Join-Path $mo2Stage (
+            'UE4SS/' + $relative.Substring('ue4ss/Mods/'.Length))
+        New-Item -ItemType Directory -Path (Split-Path $destination -Parent) -Force |
+            Out-Null
+        Copy-Item -LiteralPath $file.FullName -Destination $destination -Force
+    }
+    Copy-Item -LiteralPath (Join-Path $repositoryRoot 'README.md') `
+        -Destination (Join-Path $mo2Stage 'UNBSE-README.md') -Force
+
+    foreach ($stage in @($dropInStage, $runtimeStage, $modsStage, $mo2Stage)) {
+        Write-StageChecksums -StageDirectory $stage
+    }
 
     $sourcePaths = @(
         @($manifest.unbseMod.sourceFiles | ForEach-Object { [string]$_.relativePath }) +
@@ -148,11 +253,18 @@ try {
             -DestinationRoot $sourceStage
     }
 
-    $runtimeZip = Join-Path $output "UNBSE-$version.zip"
+    $dropInZip = Join-Path $output "UNBSE-$version.zip"
+    $runtimeZip = Join-Path $output "UNBSE-$version-runtime.zip"
+    $modsZip = Join-Path $output "UNBSE-$version-mods.zip"
+    $mo2Zip = Join-Path $output "UNBSE-$version-mo2.zip"
     $sourceZip = Join-Path $output "UNBSE-$version-source.zip"
+    New-ZipFromDirectory -SourceDirectory $dropInStage -DestinationPath $dropInZip
     New-ZipFromDirectory -SourceDirectory $runtimeStage -DestinationPath $runtimeZip
+    New-ZipFromDirectory -SourceDirectory $modsStage -DestinationPath $modsZip
+    New-ZipFromDirectory -SourceDirectory $mo2Stage -DestinationPath $mo2Zip
     New-ZipFromDirectory -SourceDirectory $sourceStage -DestinationPath $sourceZip
-    $releaseChecksums = @($runtimeZip, $sourceZip | ForEach-Object {
+    $releaseChecksums = @($dropInZip, $runtimeZip, $modsZip, $mo2Zip, $sourceZip |
+        ForEach-Object {
         "$(Get-UNBSEHash $_)  $([IO.Path]::GetFileName($_))"
     })
     $checksumPath = Join-Path $output 'SHA256SUMS.txt'
@@ -164,7 +276,10 @@ try {
     [pscustomobject]@{
         Success = $true
         Version = $version
+        DropInArchive = $dropInZip
         RuntimeArchive = $runtimeZip
+        ModsArchive = $modsZip
+        ModOrganizer2Archive = $mo2Zip
         SourceArchive = $sourceZip
         Checksums = $checksumPath
     } | ConvertTo-Json -Compress

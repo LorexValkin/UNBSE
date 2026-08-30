@@ -9,6 +9,19 @@ Organizer 2 (MO2 2.5.3 beta, Oblivion Remastered plugin from
 Support" 0.1.8), and propose fixes. Nothing in this document changes the
 release; it is the input for the follow-up work items in section 7.
 
+Current community-package verification (Nexus mod 32, official API queried
+2026-08-30): the sole current MAIN file was file `14056`, `UE4SS` version
+`3.0.1.a`, archive SHA-256
+`8D805AFDB4C8293432B87C5BD1A10ED9D80A3E576C8DD4A38AE22CA0050A86A9`.
+It identifies its runtime as UE4SS `3.0.1-394-g437a8ff`, older than UNBSE's
+pinned `3.0.1-1008-g68dd45cb`. Its useful familiar layout is the root proxy plus
+`ue4ss/`, `BPML_GenericFunctions`, `BPModLoaderMod`, and shared Lua helpers. It
+ships `mods.txt` with the two Blueprint modules enabled, not `mods.json`, and it
+ships neither `MemberVariableLayout.ini` nor an extensionless license. UNBSE
+therefore adopts only the standard module/layout convention from its newer
+pinned foundation; it does not copy the community DLLs, PDB, manager-owned mod
+list, or older settings.
+
 Report that triggered this study (MO2 2.5.3b12, Steam):
 
 > the shipped dwmapi.dll with your mod does not work within MO2, the
@@ -62,9 +75,9 @@ independent problems stack up:
      `obse64_loader.exe` the primary launch tool; UNBSE's install instructions
      require removing OBSE64. If both stay, OBSE64 and UNBSE's interop load
      `OBSE/Plugins` twice.
-   - The community's UE4SS build (Nexus mod 32) and the managers' tooling
-     assume `mods.json`, `BPModLoaderMod`, and `MemberVariableLayout.ini`;
-     UNBSE pins an upstream build with none of these.
+- The managers' tooling assumes `mods.json` and `BPModLoaderMod`; the current
+  community UE4SS package supplies the Blueprint loader and its own `mods.txt`,
+  while UNBSE's original archive supplied neither convention.
 
 UNBSE's own C++ code and the pinned UE4SS runtime are clean with respect to
 virtual paths: no canonicalisation, no reparse-point checks, no path

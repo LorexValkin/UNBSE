@@ -1,0 +1,756 @@
+#include <Windows.h>
+#include <Psapi.h>
+#include <TlHelp32.h>
+#include <bcrypt.h>
+
+#include <algorithm>
+#include <array>
+#include <chrono>
+#include <cstddef>
+#include <cstdint>
+#include <cwctype>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <optional>
+#include <span>
+#include <sstream>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <thread>
+#include <utility>
+#include <vector>
+
+namespace
+{
+    namespace fs = std::filesystem;
+
+    constexpr std::wstring_view GameExecutableName =
+            L"OblivionRemastered-Win64-Shipping.exe";
+    constexpr std::wstring_view SupportedRuntime = L"Steam 1.512.105.0";
+    constexpr std::wstring_view SteamGameRelativePath =
+            L"steamapps/common/Oblivion Remastered/OblivionRemastered/Binaries/Win64/"
+            L"OblivionRemastered-Win64-Shipping.exe";
+    constexpr std::wstring_view ExpectedGameSha256 =
+            L"B7BE7E6EBE9424F6FDF274F5E7A59372DE103E043AB5B66C60E021C0C89DF457";
+    constexpr std::wstring_view ExpectedUE4SSSha256 =
+            L"041975EEEEEC83CB0270558122BA89586C4BDE5D0DB9C5728B16406B4FAAD7B3";
+    constexpr std::uintmax_t ExpectedUE4SSBytes = 16519168;
+    constexpr std::wstring_view ExpectedSettingsSha256 =
+            L"BADAE1123D871A62A6735D1BACC95FF28E6ED12CFD8FE6BEA4DE0055726CBCE9";
+    constexpr std::uintmax_t ExpectedSettingsBytes = 7848;
+    constexpr std::wstring_view ExpectedProxySha256 =
+            L"02822565CF0E4CC607BADB6F17F3F6C4D37A4B6ED05849D98CD18C6C685183B5";
+
+    class FHandle
+    {
+      public:
+        FHandle() = default;
+        explicit FHandle(HANDLE Handle) : m_handle(Handle) {}
+        ~FHandle()
+        {
+            if (m_handle && m_handle != INVALID_HANDLE_VALUE)
+            {
+                CloseHandle(m_handle);
+            }
+        }
+
+        FHandle(const FHandle&) = delete;
+        auto operator=(const FHandle&) -> FHandle& = delete;
+        FHandle(FHandle&& Other) noexcept : m_handle(Other.release()) {}
+        auto operator=(FHandle&& Other) noexcept -> FHandle&
+        {
+            if (this != &Other)
+            {
+                FHandle Temporary{std::move(Other)};
+                swap(Temporary);
+            }
+            return *this;
+        }
+
+        [[nodiscard]] auto get() const -> HANDLE { return m_handle; }
+        [[nodiscard]] explicit operator bool() const
+        {
+            return m_handle && m_handle != INVALID_HANDLE_VALUE;
+        }
+        [[nodiscard]] auto release() -> HANDLE
+        {
+            const auto Result = m_handle;
+            m_handle = nullptr;
+            return Result;
+        }
+        auto swap(FHandle& Other) noexcept -> void { std::swap(m_handle, Other.m_handle); }
+
+      private:
+        HANDLE m_handle{};
+    };
+
+    auto FormatWindowsError(const DWORD Error) -> std::wstring
+    {
+        wchar_t* Buffer{};
+        const auto Length = FormatMessageW(
+                FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM |
+                        FORMAT_MESSAGE_IGNORE_INSERTS,
+                nullptr, Error, 0, reinterpret_cast<wchar_t*>(&Buffer), 0, nullptr);
+        std::wstring Result = Length && Buffer ? std::wstring{Buffer, Length}
+                                               : L"Windows error " + std::to_wstring(Error);
+        if (Buffer)
+        {
+            LocalFree(Buffer);
+        }
+        while (!Result.empty() && std::iswspace(Result.back()))
+        {
+            Result.pop_back();
+        }
+        return Result;
+    }
+
+    auto ToLower(std::wstring Value) -> std::wstring
+    {
+        std::transform(Value.begin(), Value.end(), Value.begin(),
+                       [](const wchar_t Character) {
+                           return static_cast<wchar_t>(std::towlower(Character));
+                       });
+        return Value;
+    }
+
+    auto GetSelfPath() -> fs::path
+    {
+        std::vector<wchar_t> Buffer(32768);
+        const auto Length = GetModuleFileNameW(
+                nullptr, Buffer.data(), static_cast<DWORD>(Buffer.size()));
+        if (Length == 0 || Length >= Buffer.size())
+        {
+            throw std::runtime_error("GetModuleFileNameW failed");
+        }
+        return fs::path{std::wstring{Buffer.data(), Length}};
+    }
+
+    auto BytesToHex(const std::span<const std::uint8_t> Bytes) -> std::wstring
+    {
+        constexpr std::array Hex{L'0', L'1', L'2', L'3', L'4', L'5', L'6', L'7',
+                                 L'8', L'9', L'A', L'B', L'C', L'D', L'E', L'F'};
+        std::wstring Result;
+        Result.reserve(Bytes.size() * 2);
+        for (const auto Byte : Bytes)
+        {
+            Result.push_back(Hex[(Byte >> 4U) & 0xFU]);
+            Result.push_back(Hex[Byte & 0xFU]);
+        }
+        return Result;
+    }
+
+    auto Sha256File(const fs::path& Path) -> std::wstring
+    {
+        BCRYPT_ALG_HANDLE Algorithm{};
+        if (!BCRYPT_SUCCESS(BCryptOpenAlgorithmProvider(
+                    &Algorithm, BCRYPT_SHA256_ALGORITHM, nullptr, 0)))
+        {
+            throw std::runtime_error("BCryptOpenAlgorithmProvider failed");
+        }
+
+        struct FAlgorithmCloser
+        {
+            BCRYPT_ALG_HANDLE Value{};
+            ~FAlgorithmCloser()
+            {
+                if (Value)
+                {
+                    BCryptCloseAlgorithmProvider(Value, 0);
+                }
+            }
+        } AlgorithmCloser{Algorithm};
+
+        DWORD ObjectBytes{};
+        DWORD ResultBytes{};
+        if (!BCRYPT_SUCCESS(BCryptGetProperty(
+                    Algorithm, BCRYPT_OBJECT_LENGTH,
+                    reinterpret_cast<PUCHAR>(&ObjectBytes), sizeof(ObjectBytes),
+                    &ResultBytes, 0)))
+        {
+            throw std::runtime_error("BCryptGetProperty(BCRYPT_OBJECT_LENGTH) failed");
+        }
+        DWORD HashBytes{};
+        if (!BCRYPT_SUCCESS(BCryptGetProperty(
+                    Algorithm, BCRYPT_HASH_LENGTH, reinterpret_cast<PUCHAR>(&HashBytes),
+                    sizeof(HashBytes), &ResultBytes, 0)))
+        {
+            throw std::runtime_error("BCryptGetProperty(BCRYPT_HASH_LENGTH) failed");
+        }
+
+        std::vector<std::uint8_t> Object(ObjectBytes);
+        BCRYPT_HASH_HANDLE Hash{};
+        if (!BCRYPT_SUCCESS(BCryptCreateHash(Algorithm, &Hash, Object.data(),
+                                             static_cast<ULONG>(Object.size()), nullptr, 0,
+                                             0)))
+        {
+            throw std::runtime_error("BCryptCreateHash failed");
+        }
+        struct FHashCloser
+        {
+            BCRYPT_HASH_HANDLE Value{};
+            ~FHashCloser()
+            {
+                if (Value)
+                {
+                    BCryptDestroyHash(Value);
+                }
+            }
+        } HashCloser{Hash};
+
+        std::ifstream Input{Path, std::ios::binary};
+        if (!Input)
+        {
+            throw std::runtime_error("Unable to open file for hashing");
+        }
+        std::vector<char> Buffer(1024 * 1024);
+        while (Input)
+        {
+            Input.read(Buffer.data(), static_cast<std::streamsize>(Buffer.size()));
+            const auto Read = Input.gcount();
+            if (Read > 0 && !BCRYPT_SUCCESS(BCryptHashData(
+                                    Hash, reinterpret_cast<PUCHAR>(Buffer.data()),
+                                    static_cast<ULONG>(Read), 0)))
+            {
+                throw std::runtime_error("BCryptHashData failed");
+            }
+        }
+        if (!Input.eof())
+        {
+            throw std::runtime_error("Unable to read file for hashing");
+        }
+
+        std::vector<std::uint8_t> Digest(HashBytes);
+        if (!BCRYPT_SUCCESS(BCryptFinishHash(
+                    Hash, Digest.data(), static_cast<ULONG>(Digest.size()), 0)))
+        {
+            throw std::runtime_error("BCryptFinishHash failed");
+        }
+        return BytesToHex(Digest);
+    }
+
+    auto ValidatePinnedFile(const fs::path& Path, const std::uintmax_t ExpectedBytes,
+                            const std::wstring_view ExpectedHash,
+                            const std::wstring_view Label) -> bool
+    {
+        std::error_code Error{};
+        if (!fs::is_regular_file(Path, Error))
+        {
+            std::wcerr << L"ERROR: " << Label << L" is missing: " << Path << L"\n";
+            return false;
+        }
+        const auto Bytes = fs::file_size(Path, Error);
+        if (Error || Bytes != ExpectedBytes)
+        {
+            std::wcerr << L"ERROR: " << Label << L" has an unexpected size: " << Path
+                       << L"\n";
+            return false;
+        }
+        const auto Hash = Sha256File(Path);
+        if (Hash != ExpectedHash)
+        {
+            std::wcerr << L"ERROR: " << Label << L" has an unexpected SHA-256: " << Path
+                       << L"\n";
+            return false;
+        }
+        return true;
+    }
+
+    auto ReadRegistryString(HKEY Root, const wchar_t* Subkey, const wchar_t* Name)
+            -> std::optional<std::wstring>
+    {
+        DWORD Type{};
+        DWORD Bytes{};
+        if (RegGetValueW(Root, Subkey, Name, RRF_RT_REG_SZ, &Type, nullptr, &Bytes) !=
+                    ERROR_SUCCESS ||
+            Bytes < sizeof(wchar_t))
+        {
+            return std::nullopt;
+        }
+        std::vector<wchar_t> Buffer(Bytes / sizeof(wchar_t));
+        if (RegGetValueW(Root, Subkey, Name, RRF_RT_REG_SZ, &Type, Buffer.data(),
+                         &Bytes) != ERROR_SUCCESS)
+        {
+            return std::nullopt;
+        }
+        return std::wstring{Buffer.data()};
+    }
+
+    auto ParseSteamLibraryPaths(const fs::path& SteamRoot) -> std::vector<fs::path>
+    {
+        std::vector<fs::path> Results{SteamRoot};
+        std::wifstream Input{SteamRoot / L"steamapps" / L"libraryfolders.vdf"};
+        std::wstring Line;
+        while (std::getline(Input, Line))
+        {
+            const auto Key = Line.find(L"\"path\"");
+            if (Key == std::wstring::npos)
+            {
+                continue;
+            }
+            const auto ValueBegin = Line.find(L'"', Key + 6);
+            const auto ValueEnd = ValueBegin == std::wstring::npos
+                                          ? std::wstring::npos
+                                          : Line.find(L'"', ValueBegin + 1);
+            if (ValueBegin == std::wstring::npos || ValueEnd == std::wstring::npos)
+            {
+                continue;
+            }
+            auto Value = Line.substr(ValueBegin + 1, ValueEnd - ValueBegin - 1);
+            std::wstring Unescaped;
+            Unescaped.reserve(Value.size());
+            for (std::size_t Index = 0; Index < Value.size(); ++Index)
+            {
+                if (Value[Index] == L'\\' && Index + 1 < Value.size() &&
+                    Value[Index + 1] == L'\\')
+                {
+                    ++Index;
+                }
+                Unescaped.push_back(Value[Index]);
+            }
+            Results.emplace_back(std::move(Unescaped));
+        }
+        return Results;
+    }
+
+    auto FindGameExecutable(const std::optional<fs::path>& Override,
+                            const fs::path& SelfDirectory) -> std::optional<fs::path>
+    {
+        std::vector<fs::path> Candidates{};
+        if (Override)
+        {
+            Candidates.push_back(*Override);
+        }
+        Candidates.push_back(fs::current_path() / GameExecutableName);
+        Candidates.push_back(SelfDirectory / GameExecutableName);
+
+        if (const auto SteamPath = ReadRegistryString(
+                    HKEY_CURRENT_USER, L"SOFTWARE\\Valve\\Steam", L"SteamPath"))
+        {
+            for (const auto& Library : ParseSteamLibraryPaths(*SteamPath))
+            {
+                Candidates.push_back(Library / SteamGameRelativePath);
+            }
+        }
+
+        for (const auto& Candidate : Candidates)
+        {
+            std::error_code Error{};
+            if (fs::is_regular_file(Candidate, Error))
+            {
+                return fs::absolute(Candidate);
+            }
+        }
+        return std::nullopt;
+    }
+
+    auto QuoteArgument(const std::wstring_view Argument) -> std::wstring
+    {
+        if (Argument.empty())
+        {
+            return L"\"\"";
+        }
+        if (Argument.find_first_of(L" \t\n\v\"") == std::wstring_view::npos)
+        {
+            return std::wstring{Argument};
+        }
+        std::wstring Result{L'"'};
+        std::size_t Backslashes{};
+        for (const auto Character : Argument)
+        {
+            if (Character == L'\\')
+            {
+                ++Backslashes;
+                continue;
+            }
+            if (Character == L'"')
+            {
+                Result.append(Backslashes * 2 + 1, L'\\');
+                Result.push_back(L'"');
+                Backslashes = 0;
+                continue;
+            }
+            Result.append(Backslashes, L'\\');
+            Backslashes = 0;
+            Result.push_back(Character);
+        }
+        Result.append(Backslashes * 2, L'\\');
+        Result.push_back(L'"');
+        return Result;
+    }
+
+    auto BuildCommandLine(const fs::path& Executable,
+                          const std::vector<std::wstring>& Arguments) -> std::wstring
+    {
+        auto Result = QuoteArgument(Executable.wstring());
+        for (const auto& Argument : Arguments)
+        {
+            Result.push_back(L' ');
+            Result.append(QuoteArgument(Argument));
+        }
+        return Result;
+    }
+
+    auto FindRemoteModule(const DWORD ProcessId, const std::wstring_view ModuleName)
+            -> std::optional<std::uintptr_t>
+    {
+        for (int Attempt = 0; Attempt < 8; ++Attempt)
+        {
+            FHandle Snapshot{CreateToolhelp32Snapshot(
+                    TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, ProcessId)};
+            if (!Snapshot && GetLastError() == ERROR_BAD_LENGTH)
+            {
+                continue;
+            }
+            if (!Snapshot)
+            {
+                return std::nullopt;
+            }
+            MODULEENTRY32W Entry{};
+            Entry.dwSize = sizeof(Entry);
+            if (!Module32FirstW(Snapshot.get(), &Entry))
+            {
+                return std::nullopt;
+            }
+            const auto Expected = ToLower(std::wstring{ModuleName});
+            do
+            {
+                if (ToLower(Entry.szModule) == Expected)
+                {
+                    return reinterpret_cast<std::uintptr_t>(Entry.modBaseAddr);
+                }
+            } while (Module32NextW(Snapshot.get(), &Entry));
+            return std::nullopt;
+        }
+        return std::nullopt;
+    }
+
+    auto WaitForRemoteModule(const HANDLE Process, const DWORD ProcessId,
+                             const std::wstring_view ModuleName,
+                             const std::chrono::milliseconds Timeout) -> bool
+    {
+        const auto Deadline = std::chrono::steady_clock::now() + Timeout;
+        while (std::chrono::steady_clock::now() < Deadline)
+        {
+            if (FindRemoteModule(ProcessId, ModuleName))
+            {
+                return true;
+            }
+            if (WaitForSingleObject(Process, 0) == WAIT_OBJECT_0)
+            {
+                return false;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds{25});
+        }
+        return false;
+    }
+
+    auto InjectLibrary(const HANDLE Process, const DWORD ProcessId,
+                       const fs::path& Library) -> bool
+    {
+        const auto Kernel32 = GetModuleHandleW(L"kernel32.dll");
+        const auto LoadLibrary = Kernel32 ? GetProcAddress(Kernel32, "LoadLibraryW") : nullptr;
+        MEMORY_BASIC_INFORMATION Memory{};
+        if (!LoadLibrary || VirtualQuery(LoadLibrary, &Memory, sizeof(Memory)) != sizeof(Memory))
+        {
+            std::wcerr << L"ERROR: Unable to resolve local LoadLibraryW.\n";
+            return false;
+        }
+        const auto LocalOwner = static_cast<HMODULE>(Memory.AllocationBase);
+        std::array<wchar_t, MAX_PATH> OwnerName{};
+        if (GetModuleBaseNameW(GetCurrentProcess(), LocalOwner, OwnerName.data(),
+                               static_cast<DWORD>(OwnerName.size())) == 0)
+        {
+            std::wcerr << L"ERROR: Unable to identify the LoadLibraryW owner module.\n";
+            return false;
+        }
+        const auto RemoteOwner = FindRemoteModule(ProcessId, OwnerName.data());
+        if (!RemoteOwner)
+        {
+            std::wcerr << L"ERROR: Child process has no " << OwnerName.data() << L" module.\n";
+            return false;
+        }
+        const auto LocalOwnerAddress = reinterpret_cast<std::uintptr_t>(LocalOwner);
+        const auto LocalLoadLibraryAddress = reinterpret_cast<std::uintptr_t>(LoadLibrary);
+        const auto RemoteLoadLibrary = *RemoteOwner +
+                                       (LocalLoadLibraryAddress - LocalOwnerAddress);
+
+        const auto LibraryText = Library.wstring();
+        const auto Bytes = (LibraryText.size() + 1) * sizeof(wchar_t);
+        auto* RemoteText = VirtualAllocEx(Process, nullptr, Bytes, MEM_COMMIT | MEM_RESERVE,
+                                          PAGE_READWRITE);
+        if (!RemoteText)
+        {
+            std::wcerr << L"ERROR: VirtualAllocEx failed: "
+                       << FormatWindowsError(GetLastError()) << L"\n";
+            return false;
+        }
+        struct FRemoteMemory
+        {
+            HANDLE Process{};
+            void* Address{};
+            ~FRemoteMemory()
+            {
+                if (Address)
+                {
+                    VirtualFreeEx(Process, Address, 0, MEM_RELEASE);
+                }
+            }
+        } RemoteMemory{Process, RemoteText};
+
+        SIZE_T Written{};
+        if (!WriteProcessMemory(Process, RemoteText, LibraryText.c_str(), Bytes, &Written) ||
+            Written != Bytes)
+        {
+            std::wcerr << L"ERROR: WriteProcessMemory failed: "
+                       << FormatWindowsError(GetLastError()) << L"\n";
+            return false;
+        }
+
+        FHandle Thread{CreateRemoteThread(
+                Process, nullptr, 0,
+                reinterpret_cast<LPTHREAD_START_ROUTINE>(RemoteLoadLibrary), RemoteText, 0,
+                nullptr)};
+        if (!Thread)
+        {
+            std::wcerr << L"ERROR: CreateRemoteThread failed: "
+                       << FormatWindowsError(GetLastError()) << L"\n";
+            return false;
+        }
+        if (WaitForSingleObject(Thread.get(), 30000) != WAIT_OBJECT_0)
+        {
+            std::wcerr << L"ERROR: Timed out while loading UE4SS in the game process.\n";
+            return false;
+        }
+        DWORD Result{};
+        if (!GetExitCodeThread(Thread.get(), &Result) || Result == 0)
+        {
+            std::wcerr << L"ERROR: The game process rejected UE4SS.dll.\n";
+            return false;
+        }
+        return true;
+    }
+
+    auto SetModsPathForChild(const fs::path& ModsPath) -> std::optional<std::wstring>
+    {
+        const auto Required = GetEnvironmentVariableW(L"UE4SS_MODS_PATHS", nullptr, 0);
+        std::optional<std::wstring> Previous{};
+        if (Required > 0)
+        {
+            std::vector<wchar_t> Buffer(Required);
+            if (GetEnvironmentVariableW(L"UE4SS_MODS_PATHS", Buffer.data(), Required) > 0)
+            {
+                Previous = Buffer.data();
+            }
+        }
+        auto Value = ModsPath.wstring();
+        if (Previous && !Previous->empty())
+        {
+            Value.append(L";");
+            Value.append(*Previous);
+        }
+        if (!SetEnvironmentVariableW(L"UE4SS_MODS_PATHS", Value.c_str()))
+        {
+            throw std::runtime_error("SetEnvironmentVariableW failed");
+        }
+        return Previous;
+    }
+
+    auto RestoreModsPath(const std::optional<std::wstring>& Previous) -> void
+    {
+        SetEnvironmentVariableW(L"UE4SS_MODS_PATHS",
+                                Previous ? Previous->c_str() : nullptr);
+    }
+
+    struct FOptions
+    {
+        std::optional<fs::path> GameExecutable{};
+        std::vector<std::wstring> GameArguments{};
+        bool ValidateOnly{};
+        bool Help{};
+    };
+
+    auto ParseOptions(const int ArgumentCount, wchar_t** Arguments) -> FOptions
+    {
+        FOptions Options{};
+        bool Passthrough{};
+        for (int Index = 1; Index < ArgumentCount; ++Index)
+        {
+            const std::wstring_view Argument{Arguments[Index]};
+            if (!Passthrough && Argument == L"--")
+            {
+                Passthrough = true;
+            }
+            else if (!Passthrough && Argument == L"--game-exe")
+            {
+                if (++Index >= ArgumentCount)
+                {
+                    throw std::runtime_error("--game-exe requires a path");
+                }
+                Options.GameExecutable = fs::path{Arguments[Index]};
+            }
+            else if (!Passthrough && Argument == L"--validate-only")
+            {
+                Options.ValidateOnly = true;
+            }
+            else if (!Passthrough && (Argument == L"--help" || Argument == L"-h"))
+            {
+                Options.Help = true;
+            }
+            else
+            {
+                Options.GameArguments.emplace_back(Argument);
+            }
+        }
+        return Options;
+    }
+
+    auto PrintUsage() -> void
+    {
+        std::wcout
+                << L"UNBSELoader [--game-exe <path>] [--validate-only] [--] [game args...]\n"
+                << L"Locates the current Steam game, validates the pinned UE4SS runtime, and "
+                   L"loads it after MO2's virtual filesystem is active.\n";
+    }
+} // namespace
+
+auto wmain(const int ArgumentCount, wchar_t** Arguments) -> int
+{
+    try
+    {
+        const auto Options = ParseOptions(ArgumentCount, Arguments);
+        if (Options.Help)
+        {
+            PrintUsage();
+            return 0;
+        }
+
+        const auto SelfPath = GetSelfPath();
+        const auto SelfDirectory = SelfPath.parent_path();
+        const auto UE4SS = SelfDirectory / L"ue4ss" / L"UE4SS.dll";
+        const auto Settings = SelfDirectory / L"ue4ss" / L"UE4SS-settings.ini";
+        if (!ValidatePinnedFile(UE4SS, ExpectedUE4SSBytes, ExpectedUE4SSSha256,
+                                L"Pinned UE4SS runtime") ||
+            !ValidatePinnedFile(Settings, ExpectedSettingsBytes, ExpectedSettingsSha256,
+                                L"Pinned UE4SS settings"))
+        {
+            return 2;
+        }
+
+        const auto Game = FindGameExecutable(Options.GameExecutable, SelfDirectory);
+        if (!Game)
+        {
+            std::wcerr << L"ERROR: Could not locate " << GameExecutableName
+                       << L". Supply --game-exe <absolute-path>.\n";
+            return 3;
+        }
+        const auto GameDirectory = Game->parent_path();
+        const auto GameHash = Sha256File(*Game);
+        const bool ExactGame = GameHash == ExpectedGameSha256;
+        if (!ExactGame)
+        {
+            std::wcerr << L"WARNING: Game SHA-256 is not the verified Steam 1.512.105.0 "
+                          L"build; continuing as an unverified attempt.\n";
+        }
+
+        const auto Proxy = GameDirectory / L"dwmapi.dll";
+        std::error_code Error{};
+        if (fs::is_regular_file(Proxy, Error) && Sha256File(Proxy) != ExpectedProxySha256)
+        {
+            std::wcerr
+                    << L"ERROR: A foreign dwmapi.dll is installed beside the game. Remove the "
+                       L"separate UE4SS/loader package before using UNBSELoader.\n";
+            return 4;
+        }
+
+        std::wcout << L"UNBSE loader: " << SelfPath << L"\n"
+                   << L"Supported runtime: " << SupportedRuntime << L" ("
+                   << (ExactGame ? L"exact hash verified" : L"unverified attempt") << L")\n"
+                   << L"Game: " << *Game << L"\n"
+                   << L"UE4SS: " << UE4SS << L"\n";
+        if (Options.ValidateOnly)
+        {
+            std::wcout << L"PASS: discovery and pinned-runtime validation succeeded.\n";
+            return 0;
+        }
+
+        auto GameArguments = Options.GameArguments;
+        if (std::find(GameArguments.begin(), GameArguments.end(), L"--disable-ue4ss") ==
+            GameArguments.end())
+        {
+            GameArguments.emplace_back(L"--disable-ue4ss");
+        }
+        auto CommandLine = BuildCommandLine(*Game, GameArguments);
+        std::vector<wchar_t> MutableCommandLine(CommandLine.begin(), CommandLine.end());
+        MutableCommandLine.push_back(L'\0');
+
+        const auto PreviousModsPath = SetModsPathForChild(
+                GameDirectory / L"ue4ss" / L"Mods");
+        STARTUPINFOW Startup{};
+        Startup.cb = sizeof(Startup);
+        PROCESS_INFORMATION ProcessInfo{};
+        const auto Created = CreateProcessW(
+                Game->c_str(), MutableCommandLine.data(), nullptr, nullptr, FALSE,
+                CREATE_SUSPENDED, nullptr, GameDirectory.c_str(), &Startup, &ProcessInfo);
+        const auto CreateError = GetLastError();
+        RestoreModsPath(PreviousModsPath);
+        if (!Created)
+        {
+            std::wcerr << L"ERROR: CreateProcessW failed: "
+                       << FormatWindowsError(CreateError) << L"\n";
+            return 5;
+        }
+
+        FHandle Process{ProcessInfo.hProcess};
+        FHandle MainThread{ProcessInfo.hThread};
+        const bool UnderMO2 = GetModuleHandleW(L"usvfs_x64.dll") != nullptr;
+        bool InjectionSucceeded{};
+        if (UnderMO2)
+        {
+            if (ResumeThread(MainThread.get()) == static_cast<DWORD>(-1))
+            {
+                std::wcerr << L"ERROR: Unable to start the MO2-injected game process.\n";
+            }
+            else if (!WaitForRemoteModule(Process.get(), ProcessInfo.dwProcessId,
+                                          L"usvfs_x64.dll", std::chrono::seconds{10}))
+            {
+                std::wcerr << L"ERROR: MO2 did not initialize USVFS in the game process.\n";
+            }
+            else
+            {
+                // Module enumeration observes the image before its initialization routine has
+                // necessarily installed every hook. A short bounded grace period keeps UE4SS's
+                // first Mods scan behind that initialization without delaying normal launches.
+                std::this_thread::sleep_for(std::chrono::milliseconds{250});
+                InjectionSucceeded = InjectLibrary(
+                        Process.get(), ProcessInfo.dwProcessId, UE4SS);
+            }
+        }
+        else
+        {
+            InjectionSucceeded = InjectLibrary(
+                    Process.get(), ProcessInfo.dwProcessId, UE4SS);
+            if (InjectionSucceeded &&
+                ResumeThread(MainThread.get()) == static_cast<DWORD>(-1))
+            {
+                std::wcerr << L"ERROR: ResumeThread failed: "
+                           << FormatWindowsError(GetLastError()) << L"\n";
+                InjectionSucceeded = false;
+            }
+        }
+
+        if (!InjectionSucceeded)
+        {
+            TerminateProcess(Process.get(), 1);
+            return 6;
+        }
+        std::wcout << L"PASS: pinned UE4SS loaded; the game is continuing.\n";
+        return 0;
+    }
+    catch (const std::exception& Error)
+    {
+        std::cerr << "ERROR: " << Error.what() << "\n";
+        return 1;
+    }
+}

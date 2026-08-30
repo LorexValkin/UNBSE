@@ -1,0 +1,2 @@
+-- Mod-manager recognition stub. UNBSE's runtime implementation is the C++ mod
+-- in dlls/main.dll; this Lua file intentionally performs no work.

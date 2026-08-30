@@ -115,6 +115,18 @@ function Get-UNBSEUE4SSModAudit {
         (@($foundationManifest.unbseMod.requiredExports) -join "`n")) {
         $errors.Add('Core package required export contract does not match the pinned foundation.')
     }
+    $loader = $foundationManifest.unbseMod.loader
+    if ([string]$packageManifest.launcher.name -cne [string]$loader.name -or
+        [string]$packageManifest.launcher.packageExecutable -cne
+            [string]$loader.packageExecutable -or
+        [string]$packageManifest.launcher.supportedDistribution -cne
+            [string]$loader.supportedDistribution -or
+        [string]$packageManifest.launcher.supportedRuntimeVersion -cne
+            [string]$loader.supportedRuntimeVersion -or
+        [string]$packageManifest.launcher.injectionPolicy -cne
+            [string]$loader.injectionPolicy) {
+        $errors.Add('UNBSE launcher contract does not match the pinned foundation.')
+    }
     $interop = $foundationManifest.unbseMod.obse64Interop
     $baseComponents = @($packageManifest.baseComponents)
     if ($baseComponents.Count -ne 1 -or
@@ -143,8 +155,11 @@ function Get-UNBSEUE4SSModAudit {
     $expectedRelativePaths = @(
         [string]$foundationManifest.unbseMod.packageDll,
         'ue4ss/Mods/UNBSE/enabled.txt',
+        'ue4ss/Mods/UNBSE/Scripts/main.lua',
         [string]$interop.packageDll,
         [string]$interop.enabledFile,
+        'ue4ss/Mods/UNBSEOBSE64Interop/Scripts/main.lua',
+        [string]$loader.packageExecutable,
         'ue4ss/Mods/UNBSE/sdk/UNBSEAddonHostV1.h',
         'ue4ss/Mods/UNBSE/sdk/UNBSEScriptServiceV1.h',
         'ue4ss/Mods/UNBSE/sdk/UNBSEMessagingV1.h',
@@ -161,7 +176,8 @@ function Get-UNBSEUE4SSModAudit {
     foreach ($artifact in $expectedArtifacts) {
         $relative = [string]$artifact.relativePath
         $ownedPath = $relative.StartsWith('ue4ss/Mods/UNBSE/', [StringComparison]::Ordinal) -or
-            $relative.StartsWith('ue4ss/Mods/UNBSEOBSE64Interop/', [StringComparison]::Ordinal)
+            $relative.StartsWith('ue4ss/Mods/UNBSEOBSE64Interop/', [StringComparison]::Ordinal) -or
+            $relative -ceq [string]$loader.packageExecutable
         if ([IO.Path]::IsPathRooted($relative) -or $relative.Contains('..') -or -not $ownedPath) {
             $errors.Add("Package artifact path is unsafe: $relative")
             continue
