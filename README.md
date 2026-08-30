@@ -24,10 +24,17 @@ clean-room OBSE64 interoperability module and discovers compatible native plugin
 from `OBSE/Plugins`. Compatibility is determined plugin by plugin; support for
 older game versions or arbitrary OBSE64 plugins is not claimed.
 
+MagicLoader 2 data mods are compatible with UNBSE. MagicLoader 2 manages its
+generated data archives separately from UNBSE and can launch the normal shipping
+executable with UNBSE installed. If a MagicLoader 2 mod also includes a native
+OBSE64 plugin, that DLL remains subject to UNBSE's plugin-by-plugin compatibility
+limits.
+
 ## Install
 
-1. Remove the legacy `obse64_loader.exe`, `obse64_steam_loader.dll`, and matching
-   `obse64_*.dll` runtime from the game's `Win64` directory.
+1. If you have legacy OBSE64 installed, remove `obse64_loader.exe`,
+   `obse64_steam_loader.dll`, and the matching `obse64_*.dll` runtime from the
+   game's `Win64` directory before installing UNBSE.
 2. Keep your existing `OBSE/Plugins` directory.
 3. Extract `UNBSE-0.11.0-rc.1.zip` directly into:
    `Oblivion Remastered/OblivionRemastered/Binaries/Win64`.
@@ -81,6 +88,10 @@ bool RegisterAddon(UNBSEQueryAddonHostV1Function query, std::uint32_t& owner)
 Retain the returned host and owner handle while the add-on is active, and call
 `host.retireAddon(owner, deadlineMs)` during shutdown. The other SDK headers add
 messaging, script services, runtime identity, and bounded RVA resolution.
+
+## Credits
+
+- Accredited Tester: SirNwah
 
 ## Build and package
 

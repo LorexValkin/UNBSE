@@ -2,55 +2,357 @@
   "sdkVersion": "v1",
   "platform": "Windows x64",
   "callingConvention": "UNBSE_SCRIPT_CALL",
+  "contract": {
+    "kind": "in-process C ABI",
+    "languageBoundary": "C-compatible",
+    "pointerLifetime": "Call-data pointers are borrowed for the synchronous call unless the selected header explicitly says otherwise. Copy returned service tables into add-on-owned storage.",
+    "compatibilityRule": "Check the requested ABI version, returned function pointers, host capabilities, runtime identity, and every result code before using a service."
+  },
   "interfaces": [
     {
+      "id": "addon-host",
       "name": "Add-on host",
       "abiVersion": 1,
       "header": "headers/UNBSEAddonHostV1.h",
       "source": "https://github.com/LorexValkin/UNBSE/blob/main/include/UNBSEAddonHostV1.h",
       "queryExport": "UNBSE_QueryAddonHostV1",
-      "purpose": "Register add-ons, declare effects and capabilities, own resources, and retire cleanly."
+      "querySignature": "int32_t UNBSE_QueryAddonHostV1(uint32_t requestedVersion, UNBSEAddonHostV1* host)",
+      "purpose": "Register add-ons, declare effects and capabilities, own resources, and retire cleanly.",
+      "whenToUse": "Start here for every native UNBSE add-on. The returned owner handle ties later registrations and retirement to your add-on.",
+      "functions": [
+        {
+          "name": "getHostCapabilities",
+          "signature": "uint32_t getHostCapabilities(void)",
+          "returns": "Bitwise UNBSEAddonHostCapabilityV1 flags supported by the loaded host.",
+          "use": "Gate optional integrations before registering or querying their services."
+        },
+        {
+          "name": "registerAddon",
+          "signature": "uint32_t registerAddon(const UNBSEAddonDescriptorV1* descriptor, UNBSEAddonRegistrationV1* registration)",
+          "returns": "UNBSEAddonResultCodeV1",
+          "use": "Declare a stable add-on ID, version, effects, and required host capabilities; receive the owner handle and compatibility result."
+        },
+        {
+          "name": "retireAddon",
+          "signature": "uint32_t retireAddon(uint32_t ownerHandle, uint32_t deadlineMs)",
+          "returns": "UNBSEAddonResultCodeV1",
+          "use": "Stop accepting owned work and retire the add-on before its DLL unloads."
+        },
+        {
+          "name": "resultName",
+          "signature": "const char* resultName(uint32_t resultCode)",
+          "returns": "A readable name for a UNBSEAddonResultCodeV1 value.",
+          "use": "Add a readable result name to diagnostics without replacing numeric result handling."
+        },
+        {
+          "name": "queryScriptService",
+          "signature": "int32_t queryScriptService(uint32_t requestedVersion, UNBSEScriptServiceV1* service)",
+          "returns": "Non-zero when the requested script-service table is available.",
+          "use": "Discover the script service through the registered host table."
+        }
+      ],
+      "capabilities": [
+        { "name": "UNBSE_ADDON_HOST_CAPABILITY_SCRIPT_SERVICE_V1", "value": 1 },
+        { "name": "UNBSE_ADDON_HOST_CAPABILITY_MESSAGING_V1", "value": 2 },
+        { "name": "UNBSE_ADDON_HOST_CAPABILITY_RUNTIME_INFO_V1", "value": 4 },
+        { "name": "UNBSE_ADDON_HOST_CAPABILITY_RELOCATION_V1", "value": 8 }
+      ],
+      "declaredEffects": [
+        { "name": "UNBSE_ADDON_EFFECT_RUNTIME_READ", "value": 1 },
+        { "name": "UNBSE_ADDON_EFFECT_RUNTIME_WRITE", "value": 2 },
+        { "name": "UNBSE_ADDON_EFFECT_FILE_IO", "value": 4 },
+        { "name": "UNBSE_ADDON_EFFECT_NETWORK_IO", "value": 8 }
+      ],
+      "compatibilityValues": [
+        { "name": "UNBSE_ADDON_COMPATIBILITY_VERIFIED", "value": 0 },
+        { "name": "UNBSE_ADDON_COMPATIBILITY_UNVERIFIED_ATTEMPT", "value": 1 }
+      ],
+      "resultCodes": [
+        { "name": "UNBSE_ADDON_RESULT_OK", "value": 0 },
+        { "name": "UNBSE_ADDON_RESULT_UNSUPPORTED_HOST_VERSION", "value": 1 },
+        { "name": "UNBSE_ADDON_RESULT_MALFORMED_DESCRIPTOR", "value": 2 },
+        { "name": "UNBSE_ADDON_RESULT_DUPLICATE_ID", "value": 3 },
+        { "name": "UNBSE_ADDON_RESULT_REGISTRY_FULL", "value": 4 },
+        { "name": "UNBSE_ADDON_RESULT_UNKNOWN_OWNER", "value": 5 },
+        { "name": "UNBSE_ADDON_RESULT_OWNER_RETIRING", "value": 6 },
+        { "name": "UNBSE_ADDON_RESULT_RETIRE_TIMEOUT", "value": 7 },
+        { "name": "UNBSE_ADDON_RESULT_SHUTTING_DOWN", "value": 8 },
+        { "name": "UNBSE_ADDON_RESULT_SCRIPT_SERVICE_FAILURE", "value": 9 }
+      ],
+      "structures": [
+        { "name": "UNBSEAddonDescriptorV1", "sizeBytes": 144 },
+        { "name": "UNBSEAddonRegistrationV1", "sizeBytes": 48 },
+        { "name": "UNBSEAddonHostV1", "sizeBytes": 72 }
+      ]
     },
     {
+      "id": "messaging",
       "name": "Messaging",
       "abiVersion": 1,
       "header": "headers/UNBSEMessagingV1.h",
       "source": "https://github.com/LorexValkin/UNBSE/blob/main/include/UNBSEMessagingV1.h",
       "queryExport": "UNBSE_QueryMessagingV1",
-      "purpose": "Register in-process listeners and dispatch bounded synchronous messages."
+      "querySignature": "int32_t UNBSE_QueryMessagingV1(uint32_t requestedVersion, UNBSEMessagingV1* messaging)",
+      "purpose": "Register in-process listeners and dispatch bounded synchronous messages.",
+      "whenToUse": "Coordinate independent add-ons without linking them together. Copy any data needed after a callback because message data is borrowed only for that callback.",
+      "functions": [
+        {
+          "name": "registerListener",
+          "signature": "uint32_t registerListener(uint32_t ownerHandle, const char* senderFilter, UNBSEMessageCallbackV1 callback, void* context)",
+          "returns": "UNBSEMessagingResultCodeV1",
+          "use": "Register one owner-scoped synchronous message callback."
+        },
+        {
+          "name": "dispatch",
+          "signature": "uint32_t dispatch(uint32_t senderOwnerHandle, uint32_t messageType, const void* data, uint32_t dataSize, const char* receiverId)",
+          "returns": "UNBSEMessagingResultCodeV1",
+          "use": "Deliver a bounded payload to matching listeners during the call."
+        },
+        {
+          "name": "resultName",
+          "signature": "const char* resultName(uint32_t resultCode)",
+          "returns": "A readable name for a UNBSEMessagingResultCodeV1 value.",
+          "use": "Add readable diagnostics while retaining numeric result handling."
+        }
+      ],
+      "callbacks": [
+        {
+          "name": "UNBSEMessageCallbackV1",
+          "signature": "void callback(const UNBSEMessageV1* message, void* context)",
+          "returns": "No value.",
+          "use": "Handle a matching message synchronously; copy any payload data needed after the callback returns."
+        }
+      ],
+      "coreMessages": [
+        { "name": "UNBSE_CORE_MESSAGE_RUNTIME_READY", "value": 1 },
+        { "name": "UNBSE_CORE_MESSAGE_LUA_READY", "value": 2 },
+        { "name": "UNBSE_CORE_MESSAGE_RUNTIME_STOPPING", "value": 3 }
+      ],
+      "resultCodes": [
+        { "name": "UNBSE_MESSAGING_RESULT_OK", "value": 0 },
+        { "name": "UNBSE_MESSAGING_RESULT_UNSUPPORTED_HOST_VERSION", "value": 1 },
+        { "name": "UNBSE_MESSAGING_RESULT_MALFORMED_REQUEST", "value": 2 },
+        { "name": "UNBSE_MESSAGING_RESULT_UNKNOWN_OWNER", "value": 3 },
+        { "name": "UNBSE_MESSAGING_RESULT_OWNER_RETIRING", "value": 4 },
+        { "name": "UNBSE_MESSAGING_RESULT_DUPLICATE_LISTENER", "value": 5 },
+        { "name": "UNBSE_MESSAGING_RESULT_LISTENER_REGISTRY_FULL", "value": 6 },
+        { "name": "UNBSE_MESSAGING_RESULT_NO_LISTENERS", "value": 7 },
+        { "name": "UNBSE_MESSAGING_RESULT_SHUTTING_DOWN", "value": 8 }
+      ],
+      "structures": [
+        { "name": "UNBSEMessageV1", "sizeBytes": 88 },
+        { "name": "UNBSEMessagingV1", "sizeBytes": 56 }
+      ]
     },
     {
+      "id": "script-service",
       "name": "Script service",
       "abiVersion": 1,
       "header": "headers/UNBSEScriptServiceV1.h",
       "source": "https://github.com/LorexValkin/UNBSE/blob/main/include/UNBSEScriptServiceV1.h",
       "queryExport": "UNBSE_QueryScriptServiceV1",
-      "purpose": "Register namespaced native functions for supported script runtimes."
+      "querySignature": "int32_t UNBSE_QueryScriptServiceV1(uint32_t requestedVersion, UNBSEScriptServiceV1* service)",
+      "purpose": "Register namespaced native functions for supported script runtimes.",
+      "whenToUse": "Expose a small typed native function to a supported script VM. Check capability flags because registration alone does not prove that a particular VM is available.",
+      "functions": [
+        {
+          "name": "getCapabilities",
+          "signature": "uint32_t getCapabilities(void)",
+          "returns": "Bitwise UNBSEScriptCapabilityV1 flags supported by the loaded service.",
+          "use": "Detect declaration support and each available script/runtime integration."
+        },
+        {
+          "name": "registerFunction",
+          "signature": "uint32_t registerFunction(uint32_t ownerHandle, const UNBSEScriptFunctionDeclarationV1* declaration)",
+          "returns": "UNBSEScriptResultCodeV1",
+          "use": "Publish an owner-scoped, namespaced function with explicit argument and result types."
+        },
+        {
+          "name": "retireOwner",
+          "signature": "uint32_t retireOwner(uint32_t ownerHandle, uint32_t deadlineMs)",
+          "returns": "UNBSEScriptResultCodeV1",
+          "use": "Stop script dispatch to an owner and wait up to the supplied deadline for active work to retire."
+        }
+      ],
+      "callbacks": [
+        {
+          "name": "UNBSEScriptFunctionV1",
+          "signature": "void callback(const UNBSEScriptInvocationV1* invocation, UNBSEScriptResultV1* result, void* context)",
+          "returns": "No direct value; write the code, value, and diagnostic into result.",
+          "use": "Validate the typed arguments, complete synchronously, and populate the result before the invocation deadline."
+        }
+      ],
+      "capabilities": [
+        { "name": "UNBSE_SCRIPT_CAPABILITY_DECLARATION_REGISTRY", "value": 1 },
+        { "name": "UNBSE_SCRIPT_CAPABILITY_UE4SS_LUA_VM", "value": 2 },
+        { "name": "UNBSE_SCRIPT_CAPABILITY_GAME_SCRIPT_VM", "value": 4 },
+        { "name": "UNBSE_SCRIPT_CAPABILITY_TES_IDENTITY_SNAPSHOT", "value": 8 },
+        { "name": "UNBSE_SCRIPT_CAPABILITY_GUID_XAAG_HANDLERS", "value": 16 },
+        { "name": "UNBSE_SCRIPT_CAPABILITY_AREA_RUNTIME_SNAPSHOT", "value": 32 },
+        { "name": "UNBSE_SCRIPT_CAPABILITY_AREA_SPLINE_SNAPSHOT", "value": 64 },
+        { "name": "UNBSE_SCRIPT_CAPABILITY_MATERIAL_PARAMETER_COLLECTIONS", "value": 128 },
+        { "name": "UNBSE_SCRIPT_CAPABILITY_RVT_PRODUCERS", "value": 256 }
+      ],
+      "valueTypes": [
+        { "name": "UNBSE_SCRIPT_VALUE_NONE", "value": 0 },
+        { "name": "UNBSE_SCRIPT_VALUE_BOOL", "value": 1 },
+        { "name": "UNBSE_SCRIPT_VALUE_INT64", "value": 2 },
+        { "name": "UNBSE_SCRIPT_VALUE_FLOAT64", "value": 3 },
+        { "name": "UNBSE_SCRIPT_VALUE_UTF8", "value": 4 }
+      ],
+      "functionFlags": [
+        { "name": "UNBSE_SCRIPT_FUNCTION_READ_ONLY", "value": 1 }
+      ],
+      "resultCodes": [
+        { "name": "UNBSE_SCRIPT_RESULT_OK", "value": 0 },
+        { "name": "UNBSE_SCRIPT_RESULT_UNSUPPORTED_SERVICE_VERSION", "value": 1 },
+        { "name": "UNBSE_SCRIPT_RESULT_MALFORMED_DECLARATION", "value": 2 },
+        { "name": "UNBSE_SCRIPT_RESULT_NAMESPACE_VIOLATION", "value": 3 },
+        { "name": "UNBSE_SCRIPT_RESULT_DUPLICATE_NAME", "value": 4 },
+        { "name": "UNBSE_SCRIPT_RESULT_REGISTRY_FULL", "value": 5 },
+        { "name": "UNBSE_SCRIPT_RESULT_OWNER_LIMIT", "value": 6 },
+        { "name": "UNBSE_SCRIPT_RESULT_OWNER_RETIRED", "value": 7 },
+        { "name": "UNBSE_SCRIPT_RESULT_VM_UNAVAILABLE", "value": 8 },
+        { "name": "UNBSE_SCRIPT_RESULT_VM_THREAD_MISMATCH", "value": 9 },
+        { "name": "UNBSE_SCRIPT_RESULT_FUNCTION_NOT_FOUND", "value": 10 },
+        { "name": "UNBSE_SCRIPT_RESULT_ARGUMENT_MISMATCH", "value": 11 },
+        { "name": "UNBSE_SCRIPT_RESULT_CALLBACK_FAILED", "value": 12 },
+        { "name": "UNBSE_SCRIPT_RESULT_DEADLINE_EXPIRED", "value": 13 },
+        { "name": "UNBSE_SCRIPT_RESULT_RETIRE_TIMEOUT", "value": 14 },
+        { "name": "UNBSE_SCRIPT_RESULT_SHUTTING_DOWN", "value": 15 },
+        { "name": "UNBSE_SCRIPT_RESULT_NAMESPACE_COLLISION", "value": 16 }
+      ],
+      "structures": [
+        { "name": "UNBSEScriptValueV1", "sizeBytes": 288 },
+        { "name": "UNBSEScriptInvocationV1", "sizeBytes": 40 },
+        { "name": "UNBSEScriptResultV1", "sizeBytes": 432 },
+        { "name": "UNBSEScriptFunctionDeclarationV1", "sizeBytes": 152 },
+        { "name": "UNBSEScriptServiceV1", "sizeBytes": 72 }
+      ]
     },
     {
+      "id": "runtime-info",
       "name": "Runtime information",
       "abiVersion": 1,
       "header": "headers/UNBSERuntimeInfoV1.h",
       "source": "https://github.com/LorexValkin/UNBSE/blob/main/include/UNBSERuntimeInfoV1.h",
       "queryExport": "UNBSE_QueryRuntimeInfoV1",
-      "purpose": "Read the loaded executable, platform, and foundation identity."
+      "querySignature": "int32_t UNBSE_QueryRuntimeInfoV1(uint32_t requestedVersion, UNBSERuntimeInfoV1* runtimeInfo)",
+      "purpose": "Read the loaded executable, platform, and foundation identity.",
+      "whenToUse": "Verify the observed executable and host version before selecting version-specific behavior or relative addresses. Identity describes what is loaded; it does not declare your add-on compatible.",
+      "functions": [],
+      "identityFlags": [
+        { "name": "UNBSE_RUNTIME_IDENTITY_PROCESS_OBSERVED", "value": 1 },
+        { "name": "UNBSE_RUNTIME_IDENTITY_PE_OBSERVED", "value": 2 },
+        { "name": "UNBSE_RUNTIME_IDENTITY_FOUNDATION_DECLARED", "value": 4 }
+      ],
+      "platforms": [
+        { "name": "UNBSE_RUNTIME_PLATFORM_WINDOWS_X64", "value": 1 }
+      ],
+      "structures": [
+        { "name": "UNBSERuntimeInfoV1", "sizeBytes": 368 }
+      ]
     },
     {
+      "id": "relocation",
       "name": "Relocation",
       "abiVersion": 1,
       "header": "headers/UNBSERelocationV1.h",
       "source": "https://github.com/LorexValkin/UNBSE/blob/main/include/UNBSERelocationV1.h",
       "queryExport": "UNBSE_QueryRelocationV1",
-      "purpose": "Resolve an executable-relative address after ownership and bounds checks."
+      "querySignature": "int32_t UNBSE_QueryRelocationV1(uint32_t requestedVersion, UNBSERelocationV1* relocation)",
+      "purpose": "Resolve an executable-relative address after ownership and bounds checks.",
+      "whenToUse": "After validating runtime identity, convert an RVA selected for that exact game build into an in-process address. Bounds checks do not prove that the selected address has compatible behavior.",
+      "functions": [
+        {
+          "name": "resolve",
+          "signature": "uint32_t resolve(const UNBSERelocationRequestV1* request, UNBSERelocationResultV1* result)",
+          "returns": "UNBSERelocationResultCodeV1",
+          "use": "Validate owner, module, image bounds, and arithmetic before returning an absolute executable address."
+        },
+        {
+          "name": "resultName",
+          "signature": "const char* resultName(uint32_t resultCode)",
+          "returns": "A readable name for a UNBSERelocationResultCodeV1 value.",
+          "use": "Add readable diagnostics while retaining numeric result handling."
+        }
+      ],
+      "modules": [
+        { "name": "UNBSE_RELOCATION_MODULE_EXECUTABLE", "value": 1 }
+      ],
+      "resultCodes": [
+        { "name": "UNBSE_RELOCATION_RESULT_OK", "value": 0 },
+        { "name": "UNBSE_RELOCATION_RESULT_UNSUPPORTED_HOST_VERSION", "value": 1 },
+        { "name": "UNBSE_RELOCATION_RESULT_MALFORMED_REQUEST", "value": 2 },
+        { "name": "UNBSE_RELOCATION_RESULT_UNKNOWN_OWNER", "value": 3 },
+        { "name": "UNBSE_RELOCATION_RESULT_OWNER_RETIRING", "value": 4 },
+        { "name": "UNBSE_RELOCATION_RESULT_UNSUPPORTED_MODULE", "value": 5 },
+        { "name": "UNBSE_RELOCATION_RESULT_OUT_OF_RANGE", "value": 6 },
+        { "name": "UNBSE_RELOCATION_RESULT_SHUTTING_DOWN", "value": 7 },
+        { "name": "UNBSE_RELOCATION_RESULT_RUNTIME_UNAVAILABLE", "value": 8 }
+      ],
+      "structures": [
+        { "name": "UNBSERelocationRequestV1", "sizeBytes": 48 },
+        { "name": "UNBSERelocationResultV1", "sizeBytes": 56 },
+        { "name": "UNBSERelocationV1", "sizeBytes": 48 }
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "runtime-aware-relocation",
+      "title": "Use a version-specific game address",
+      "calls": [
+        "UNBSE_QueryAddonHostV1",
+        "registerAddon",
+        "UNBSE_QueryRuntimeInfoV1",
+        "UNBSE_QueryRelocationV1",
+        "resolve",
+        "retireAddon"
+      ],
+      "rule": "Match the observed executable identity to an address table your add-on explicitly supports before calling resolve."
+    },
+    {
+      "id": "script-function",
+      "title": "Expose a native function to scripts",
+      "calls": [
+        "UNBSE_QueryAddonHostV1",
+        "registerAddon",
+        "queryScriptService",
+        "getCapabilities",
+        "registerFunction",
+        "retireOwner",
+        "retireAddon"
+      ],
+      "rule": "Use a stable namespace, validate argument types in the callback, and return before the invocation deadline."
+    },
+    {
+      "id": "addon-messaging",
+      "title": "Exchange an in-process add-on message",
+      "calls": [
+        "UNBSE_QueryAddonHostV1",
+        "registerAddon",
+        "UNBSE_QueryMessagingV1",
+        "registerListener",
+        "dispatch",
+        "retireAddon"
+      ],
+      "rule": "Treat the payload as borrowed for the synchronous callback and keep it within the published byte limit."
     }
   ],
   "limits": {
     "registeredAddons": 32,
+    "addonIdBytes": 64,
+    "addonVersionBytes": 32,
     "messageListeners": 128,
     "messageBytes": 1048576,
+    "messageSenderBytes": 64,
     "scriptFunctions": 64,
     "scriptFunctionsPerOwner": 16,
     "scriptArguments": 8,
+    "scriptTokenBytes": 32,
+    "scriptUtf8Bytes": 256,
+    "scriptDiagnosticBytes": 128,
     "defaultScriptDeadlineMs": 50
   }
 }

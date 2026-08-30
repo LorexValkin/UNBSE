@@ -80,7 +80,7 @@
                      "patches":  [
                                      {
                                          "relativePath":  "ue4ss/patches/0001-add-unbse-external-mod.patch",
-                                         "sha256":  "7D0A5D87D7E48F8DF8CA6CA5E9284FB9CE6C0CA43ED901DC96159B63B6AF9F98",
+                                         "sha256":  "640E853526731A5A7A34162B79552E386C3671B57C1805124F464CEA71CA8BF3",
                                          "purpose":  "Build UNBSE inside the pinned UE4SS graph so compiler configuration and CRT match exactly.",
                                          "expectedChangedPaths":  [
                                                                       "CMakeLists.txt"
@@ -88,7 +88,7 @@
                                      },
                                      {
                                          "relativePath":  "ue4ss/patches/0002-fix-msvc-special-invalid-ptr-constexpr.patch",
-                                         "sha256":  "CA5C07FA79AD6175CA2ECB6E31EC1E695D624F3F3B703991A7F40676D8EE5D15",
+                                         "sha256":  "5C47A792A29F8030B3380E11B7B47F229A69BCB6FFADF0B3940982D22EC9788B",
                                          "purpose":  "Apply the same non-constexpr runtime sentinel form present in later upstream source so pinned UE4SS compiles with MSVC 14.44.",
                                          "expectedChangedPaths":  [
                                                                       "deps/first/LuaMadeSimple/include/LuaMadeSimple/LuaObject.hpp"
@@ -146,7 +146,7 @@
                                          },
                                          {
                                              "relativePath":  "include/UNBSEScriptServiceV1.h",
-                                             "sha256":  "A590CD61F2FA759E15C2913827F88D4C8B3C826B1679D700D1DE7F048841DE60"
+                                             "sha256":  "B7D659C938135D0C15E8CEF29E766EF8633E870B6584AF69554CFBA230FF7995"
                                          },
                                          {
                                              "relativePath":  "ue4ss/addons/README.md",
@@ -166,7 +166,7 @@
                                          },
                                          {
                                              "relativePath":  "ue4ss/mod/UNBSE/include/ScriptServiceRegistry.hpp",
-                                             "sha256":  "7C0C0FD10B2354000E039F56E1DF6A5D0FE6ECD20DCA886A4C93ACFE6CB4F594"
+                                             "sha256":  "3B139C6B9E627FC9E1606F93F84777C9B1891A48DF382418E6B9ACEE12D60AD6"
                                          },
                                          {
                                              "relativePath":  "ue4ss/mod/UNBSE/include/UNBSECoreMod.hpp",
@@ -186,7 +186,7 @@
                                          },
                                          {
                                              "relativePath":  "ue4ss/mod/UNBSE/src/ScriptServiceRegistry.cpp",
-                                             "sha256":  "83332A04893791E2CD40FC430710028FD453E055E01CAB61AFA9A844F791F58C"
+                                             "sha256":  "3B70C5A92B423D6990058B3B354E2E73B4EC7CE1C38C502300D1887E2CBA514F"
                                          },
                                          {
                                              "relativePath":  "ue4ss/mod/UNBSE/src/UNBSECoreMod.cpp",
@@ -194,7 +194,7 @@
                                          },
                                          {
                                              "relativePath":  "ue4ss/scripts/Build-UNBSEUE4SSMod.ps1",
-                                             "sha256":  "04A63FA0D7FEF13906930C13955CE2EAE985800D01056C94BF33392D773F7AA2"
+                                             "sha256":  "8FC271A9D89F9FD58510B0B04EB25DFE854400C39847F1C48E396ECB2DC8CE99"
                                          },
                                          {
                                              "relativePath":  "ue4ss/scripts/Install-UNBSEUE4SSMod.ps1",
@@ -202,7 +202,7 @@
                                          },
                                          {
                                              "relativePath":  "ue4ss/scripts/Package-UNBSERelease.ps1",
-                                             "sha256":  "5A8A80C3F0F5C11688474771D6307D8D1727889E04B092F758AE13FE4AB0F1ED"
+                                             "sha256":  "04F4A2ECF7348F3D37886935F4206119BC91D807C9DB982DA970146BD685F046"
                                          },
                                          {
                                              "relativePath":  "ue4ss/scripts/Set-UNBSECoreManifestBoundary.ps1",
@@ -214,11 +214,11 @@
                                          },
                                          {
                                              "relativePath":  "ue4ss/scripts/UNBSEUE4SSMod.psm1",
-                                             "sha256":  "15369696743F6D16995CC33BB485B9033097D5B6B154DEA9253BCA01A70A2E0D"
+                                             "sha256":  "E27A6F0A393A23A2F337582EBAD15AA380E2704EA4431116B49D35263163CB6C"
                                          },
                                          {
                                              "relativePath":  "ue4ss/scripts/Update-UNBSESourceFilePins.ps1",
-                                             "sha256":  "C1C0C896D40F1490FCF3CDDAE4B1574DAE356EA7090A5F60FD968113092092EF"
+                                             "sha256":  "E7D6C1D3835B637BE3CD13758C516F36ACEAE334677F15709337B885CFD9069D"
                                          }
                                      ],
                      "addonHost":  {

@@ -11,5 +11,6 @@
     }
   ],
   "documentation": "../plugin-development.html",
+  "apiReference": "../api-reference.html",
   "repository": "https://github.com/LorexValkin/UNBSE"
 }

@@ -40,7 +40,10 @@ function Copy-RepositoryFile {
     $source = Assert-UNBSENoReparsePath (Join-Path $RepositoryRoot $RelativePath)
     $destination = Join-Path $DestinationRoot $RelativePath
     New-Item -ItemType Directory -Path (Split-Path $destination -Parent) -Force | Out-Null
-    Copy-Item -LiteralPath $source -Destination $destination -Force
+    $utf8 = [Text.UTF8Encoding]::new($false, $true)
+    $text = $utf8.GetString([IO.File]::ReadAllBytes($source))
+    $canonicalText = $text.Replace("`r`n", "`n").Replace("`r", "`n")
+    [IO.File]::WriteAllText($destination, $canonicalText, $utf8)
 }
 
 function New-ZipFromDirectory {
@@ -136,7 +139,7 @@ try {
         @($manifest.unbseMod.obse64Interop.sourceFiles |
             ForEach-Object { [string]$_.relativePath }) +
         @($manifest.patchSet.patches | ForEach-Object { [string]$_.relativePath }) +
-        @('README.md', 'ue4ss/foundation-manifest.json')
+        @('.gitattributes', 'README.md', 'ue4ss/foundation-manifest.json')
     ) | Sort-Object -Unique
     foreach ($relativePath in $sourcePaths) {
         Copy-RepositoryFile `
