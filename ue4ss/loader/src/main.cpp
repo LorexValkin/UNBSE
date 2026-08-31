@@ -50,21 +50,29 @@ namespace
     constexpr std::wstring_view ExpectedProxySha256 =
             L"02822565CF0E4CC607BADB6F17F3F6C4D37A4B6ED05849D98CD18C6C685183B5";
     constexpr std::string_view SettingsProfileMarker =
-            "; UNBSE-Settings-Profile: 0.13.1-rc.1";
+            "; UNBSE-Settings-Profile: 0.13.2-rc.1";
+
+    enum class EIniSettingPolicy
+    {
+        Required,
+        DefaultNumericBoolean,
+        DefaultTextBoolean,
+    };
 
     struct FRequiredIniSetting
     {
         std::string_view Section{};
         std::string_view Key{};
         std::string_view Value{};
-        bool PreserveValidBoolean{};
+        EIniSettingPolicy Policy{EIniSettingPolicy::Required};
     };
 
     constexpr std::array RequiredIniSettings{
             FRequiredIniSetting{"General", "EnableHotReloadSystem", "0"},
             FRequiredIniSetting{"General", "UseCache", "1"},
             FRequiredIniSetting{"General", "InvalidateCacheIfDLLDiffers", "1"},
-            FRequiredIniSetting{"General", "bUseUObjectArrayCache", "false"},
+            FRequiredIniSetting{"General", "bUseUObjectArrayCache", "false",
+                                EIniSettingPolicy::DefaultTextBoolean},
             FRequiredIniSetting{
                     "General", "DefaultExecuteInGameThreadMethod", "EngineTick"},
             FRequiredIniSetting{"Debug", "ConsoleEnabled", "1"},
@@ -80,7 +88,48 @@ namespace
             FRequiredIniSetting{"Hooks", "HookProcessLocalScriptFunction", "1"},
             FRequiredIniSetting{"Hooks", "HookLoadMap", "1"},
             FRequiredIniSetting{
-                    "UNBSE", "EnablePluginVersionWarning", "0", true}};
+                    "UNBSE", "EnablePluginVersionWarning", "0",
+                    EIniSettingPolicy::DefaultNumericBoolean},
+            FRequiredIniSetting{
+                    "UNBSE", "EnableAssetContainerWarning", "0",
+                    EIniSettingPolicy::DefaultNumericBoolean}};
+
+    [[nodiscard]] auto IsDefaultIniSetting(const FRequiredIniSetting& Setting)
+            -> bool
+    {
+        return Setting.Policy != EIniSettingPolicy::Required;
+    }
+
+    [[nodiscard]] auto IsIniSettingValueValid(const FRequiredIniSetting& Setting,
+                                              const std::string_view Value) -> bool
+    {
+        switch (Setting.Policy)
+        {
+        case EIniSettingPolicy::Required:
+            return Value == Setting.Value;
+        case EIniSettingPolicy::DefaultNumericBoolean:
+            return Value == "0" || Value == "1";
+        case EIniSettingPolicy::DefaultTextBoolean:
+            return Value == "false" || Value == "true";
+        }
+        return false;
+    }
+
+    [[nodiscard]] auto IniSettingExpectation(const FRequiredIniSetting& Setting)
+            -> std::string
+    {
+        switch (Setting.Policy)
+        {
+        case EIniSettingPolicy::Required:
+            return "required '" + std::string{Setting.Value} + "'";
+        case EIniSettingPolicy::DefaultNumericBoolean:
+            return "expected 0 or 1; default '" + std::string{Setting.Value} + "'";
+        case EIniSettingPolicy::DefaultTextBoolean:
+            return "expected true or false; default '" + std::string{Setting.Value} +
+                   "'";
+        }
+        return "invalid setting contract";
+    }
 
     class FHandle
     {
@@ -692,11 +741,7 @@ namespace
                     continue;
                 }
                 Found = true;
-                const bool ValidBoolean =
-                        Setting->Value == "0" || Setting->Value == "1";
-                if ((!Required.PreserveValidBoolean &&
-                     Setting->Value != Required.Value) ||
-                    (Required.PreserveValidBoolean && !ValidBoolean))
+                if (!IsIniSettingValueValid(Required, Setting->Value))
                 {
                     WrongValue = std::string{Setting->Value};
                 }
@@ -706,7 +751,7 @@ namespace
                 Result.Issues.emplace_back(
                         "[" + std::string{Required.Section} + "] " +
                         std::string{Required.Key} + " is missing (" +
-                        (Required.PreserveValidBoolean ? "default " : "required ") +
+                        (IsDefaultIniSetting(Required) ? "default " : "required ") +
                         std::string{Required.Value} + ")");
             }
             else if (WrongValue)
@@ -714,16 +759,14 @@ namespace
                 Result.Issues.emplace_back(
                         "[" + std::string{Required.Section} + "] " +
                         std::string{Required.Key} + " is '" + *WrongValue +
-                        "' (" +
-                        (Required.PreserveValidBoolean ? "expected 0 or 1; default '"
-                                                       : "required '") +
-                        std::string{Required.Value} + "')");
+                        "' (" + IniSettingExpectation(Required) + ")");
             }
         }
         return Result;
     }
 
-    auto PluginVersionWarningEnabled(const FIniDocument& Document) -> bool
+    auto UnbseToggleEnabled(const FIniDocument& Document,
+                            const std::string_view Key) -> bool
     {
         std::string_view CurrentSection{};
         bool Enabled{};
@@ -736,7 +779,7 @@ namespace
             }
             const auto Setting = ParseIniSetting(Line);
             if (Setting && CurrentSection == "UNBSE" &&
-                Setting->Key == "EnablePluginVersionWarning")
+                Setting->Key == Key)
             {
                 Enabled = Setting->Value == "1";
             }
@@ -791,9 +834,7 @@ namespace
             for (const auto Index : Matches)
             {
                 const auto Setting = ParseIniSetting(Document.Lines[Index]);
-                const bool ValidBoolean =
-                        Setting && (Setting->Value == "0" || Setting->Value == "1");
-                if (!Required.PreserveValidBoolean || !ValidBoolean)
+                if (!Setting || !IsIniSettingValueValid(Required, Setting->Value))
                 {
                     Document.Lines[Index] = Replacement;
                 }
@@ -958,10 +999,12 @@ namespace
 
     auto EnsureCompatibleSettings(const fs::path& Path, const bool ValidateOnly,
                                   bool& Repaired,
-                                  bool& EnablePluginVersionWarning) -> bool
+                                  bool& EnablePluginVersionWarning,
+                                  bool& EnableAssetContainerWarning) -> bool
     {
         Repaired = false;
         EnablePluginVersionWarning = false;
+        EnableAssetContainerWarning = false;
         const auto Review = ReadIniDocument(Path);
         if (!Review.Error.empty())
         {
@@ -971,11 +1014,15 @@ namespace
         if (Review.Issues.empty())
         {
             EnablePluginVersionWarning =
-                    PluginVersionWarningEnabled(Review.Document);
+                    UnbseToggleEnabled(Review.Document,
+                                        "EnablePluginVersionWarning");
+            EnableAssetContainerWarning =
+                    UnbseToggleEnabled(Review.Document,
+                                        "EnableAssetContainerWarning");
             return true;
         }
 
-        std::wcerr << L"ERROR: UE4SS-settings.ini is not UNBSE 0.13.1-rc.1 compliant:\n";
+        std::wcerr << L"ERROR: UE4SS-settings.ini is not UNBSE 0.13.2-rc.1 compliant:\n";
         for (const auto& Issue : Review.Issues)
         {
             std::wcerr << L"  - " << Utf8ToWide(Issue) << L"\n";
@@ -988,7 +1035,7 @@ namespace
         }
 
         std::wostringstream Prompt{};
-        Prompt << L"UE4SS-settings.ini is not compatible with UNBSE 0.13.1-rc.1.\n\n";
+        Prompt << L"UE4SS-settings.ini is not compatible with UNBSE 0.13.2-rc.1.\n\n";
         constexpr std::size_t MaximumDisplayedIssues = 15;
         const auto Displayed = std::min(Review.Issues.size(), MaximumDisplayedIssues);
         for (std::size_t Index = 0; Index < Displayed; ++Index)
@@ -1000,8 +1047,9 @@ namespace
             Prompt << L"...and " << (Review.Issues.size() - Displayed)
                    << L" more issue(s).\n";
         }
-        Prompt << L"\nUpdate the INI now? Only UNBSE's required keys will be added or "
-                  L"corrected. Other settings and comments are preserved.";
+        Prompt << L"\nUpdate the INI now? Only UNBSE's managed required/default keys "
+                  L"will be added or corrected. Other settings and comments are "
+                  L"preserved.";
         if (!Review.Document.Missing)
         {
             Prompt << L" A uniquely named backup will be created first.";
@@ -1288,6 +1336,208 @@ namespace
         }
     }
 
+    struct FScrollableWarningDialogState
+    {
+        bool Complete{};
+        bool Accepted{};
+        HWND Summary{};
+        HWND Details{};
+        HWND Accept{};
+        HWND Reject{};
+    };
+
+    auto LayoutScrollableWarningDialog(const HWND Window,
+                                       const FScrollableWarningDialogState& State) -> void
+    {
+        RECT Client{};
+        if (!GetClientRect(Window, &Client))
+        {
+            return;
+        }
+        constexpr int Margin = 16;
+        constexpr int Gap = 12;
+        constexpr int SummaryHeight = 72;
+        constexpr int ButtonWidth = 132;
+        constexpr int ButtonHeight = 32;
+        const int Width = static_cast<int>(Client.right - Client.left);
+        const int Height = static_cast<int>(Client.bottom - Client.top);
+        const auto ButtonsTop = Height - Margin - ButtonHeight;
+        const auto DetailsTop = Margin + SummaryHeight + Gap;
+        const auto DetailsHeight = std::max(80, ButtonsTop - Gap - DetailsTop);
+        MoveWindow(State.Summary, Margin, Margin, std::max(1, Width - (2 * Margin)),
+                   SummaryHeight, TRUE);
+        MoveWindow(State.Details, Margin, DetailsTop,
+                   std::max(1, Width - (2 * Margin)), DetailsHeight, TRUE);
+        MoveWindow(State.Reject, Width - Margin - ButtonWidth, ButtonsTop,
+                   ButtonWidth, ButtonHeight, TRUE);
+        MoveWindow(State.Accept, Width - Margin - (2 * ButtonWidth) - Gap,
+                   ButtonsTop, ButtonWidth, ButtonHeight, TRUE);
+    }
+
+    auto CALLBACK ScrollableWarningDialogProc(const HWND Window, const UINT Message,
+                                              const WPARAM WParam,
+                                              const LPARAM LParam) -> LRESULT
+    {
+        auto* State = reinterpret_cast<FScrollableWarningDialogState*>(
+                GetWindowLongPtrW(Window, GWLP_USERDATA));
+        if (Message == WM_NCCREATE)
+        {
+            const auto* Create = reinterpret_cast<const CREATESTRUCTW*>(LParam);
+            State = static_cast<FScrollableWarningDialogState*>(Create->lpCreateParams);
+            SetWindowLongPtrW(Window, GWLP_USERDATA,
+                              reinterpret_cast<LONG_PTR>(State));
+        }
+        if (!State)
+        {
+            return DefWindowProcW(Window, Message, WParam, LParam);
+        }
+        switch (Message)
+        {
+        case WM_SIZE:
+            LayoutScrollableWarningDialog(Window, *State);
+            return 0;
+        case WM_GETMINMAXINFO:
+        {
+            auto* Size = reinterpret_cast<MINMAXINFO*>(LParam);
+            Size->ptMinTrackSize.x = 560;
+            Size->ptMinTrackSize.y = 380;
+            return 0;
+        }
+        case WM_COMMAND:
+            if (LOWORD(WParam) == IDYES || LOWORD(WParam) == IDNO)
+            {
+                State->Accepted = LOWORD(WParam) == IDYES;
+                State->Complete = true;
+                DestroyWindow(Window);
+                return 0;
+            }
+            break;
+        case WM_CLOSE:
+            State->Accepted = false;
+            State->Complete = true;
+            DestroyWindow(Window);
+            return 0;
+        case WM_NCDESTROY:
+            State->Complete = true;
+            SetWindowLongPtrW(Window, GWLP_USERDATA, 0);
+            break;
+        default:
+            break;
+        }
+        return DefWindowProcW(Window, Message, WParam, LParam);
+    }
+
+    auto ShowScrollableWarningDialog(const std::wstring_view Title,
+                                     const std::wstring_view Summary,
+                                     const std::wstring_view Details) -> bool
+    {
+        constexpr auto WindowClassName = L"UNBSEScrollableWarningDialog";
+        const auto Instance = GetModuleHandleW(nullptr);
+        WNDCLASSEXW WindowClass{};
+        WindowClass.cbSize = sizeof(WindowClass);
+        WindowClass.style = CS_HREDRAW | CS_VREDRAW;
+        WindowClass.lpfnWndProc = ScrollableWarningDialogProc;
+        WindowClass.hInstance = Instance;
+        WindowClass.hIcon = LoadIconW(nullptr, IDI_WARNING);
+        WindowClass.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+        WindowClass.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
+        WindowClass.lpszClassName = WindowClassName;
+        if (!RegisterClassExW(&WindowClass) &&
+            GetLastError() != ERROR_CLASS_ALREADY_EXISTS)
+        {
+            return MessageBoxW(nullptr, std::wstring{Summary}.c_str(),
+                               std::wstring{Title}.c_str(),
+                               MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2 |
+                                       MB_SETFOREGROUND) == IDYES;
+        }
+
+        RECT WorkArea{};
+        SystemParametersInfoW(SPI_GETWORKAREA, 0, &WorkArea, 0);
+        const int WorkWidth = static_cast<int>(WorkArea.right - WorkArea.left);
+        const int WorkHeight = static_cast<int>(WorkArea.bottom - WorkArea.top);
+        const auto Width = std::min(780, WorkWidth - 40);
+        const auto Height = std::min(560, WorkHeight - 40);
+        const auto Left = WorkArea.left +
+                          ((WorkArea.right - WorkArea.left - Width) / 2);
+        const auto Top = WorkArea.top +
+                         ((WorkArea.bottom - WorkArea.top - Height) / 2);
+        FScrollableWarningDialogState State{};
+        const auto Window = CreateWindowExW(
+                WS_EX_DLGMODALFRAME | WS_EX_CONTROLPARENT | WS_EX_TOPMOST,
+                WindowClassName, std::wstring{Title}.c_str(),
+                WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME |
+                        WS_CLIPCHILDREN,
+                Left, Top, Width, Height, nullptr, nullptr, Instance, &State);
+        if (!Window)
+        {
+            return MessageBoxW(nullptr, std::wstring{Summary}.c_str(),
+                               std::wstring{Title}.c_str(),
+                               MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2 |
+                                       MB_SETFOREGROUND) == IDYES;
+        }
+
+        State.Summary = CreateWindowExW(
+                0, L"STATIC", std::wstring{Summary}.c_str(), WS_CHILD | WS_VISIBLE,
+                0, 0, 0, 0, Window, nullptr, Instance, nullptr);
+        State.Details = CreateWindowExW(
+                WS_EX_CLIENTEDGE, L"EDIT", L"",
+                WS_CHILD | WS_VISIBLE | WS_TABSTOP | WS_VSCROLL | ES_MULTILINE |
+                        ES_AUTOVSCROLL | ES_READONLY | ES_NOHIDESEL,
+                0, 0, 0, 0, Window, nullptr, Instance, nullptr);
+        State.Accept = CreateWindowExW(
+                0, L"BUTTON", L"Launch Anyway", WS_CHILD | WS_VISIBLE | WS_TABSTOP,
+                0, 0, 0, 0, Window, reinterpret_cast<HMENU>(IDYES), Instance,
+                nullptr);
+        State.Reject = CreateWindowExW(
+                0, L"BUTTON", L"Cancel",
+                WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON, 0, 0, 0, 0,
+                Window, reinterpret_cast<HMENU>(IDNO), Instance, nullptr);
+        if (!State.Summary || !State.Details || !State.Accept || !State.Reject)
+        {
+            DestroyWindow(Window);
+            return false;
+        }
+
+        const auto Font = GetStockObject(DEFAULT_GUI_FONT);
+        for (const auto Control :
+             {State.Summary, State.Details, State.Accept, State.Reject})
+        {
+            SendMessageW(Control, WM_SETFONT, reinterpret_cast<WPARAM>(Font), TRUE);
+        }
+        SendMessageW(State.Details, EM_SETLIMITTEXT,
+                     static_cast<WPARAM>(std::min<std::size_t>(
+                             Details.size() + 1,
+                             static_cast<std::size_t>(std::numeric_limits<LONG>::max()))),
+                     0);
+        SetWindowTextW(State.Details, std::wstring{Details}.c_str());
+        LayoutScrollableWarningDialog(Window, State);
+        ShowWindow(Window, SW_SHOW);
+        UpdateWindow(Window);
+        SetForegroundWindow(Window);
+        SetFocus(State.Reject);
+
+        MSG Message{};
+        while (!State.Complete)
+        {
+            const auto Status = GetMessageW(&Message, nullptr, 0, 0);
+            if (Status <= 0)
+            {
+                State.Complete = true;
+                break;
+            }
+            if (!IsDialogMessageW(Window, &Message))
+            {
+                TranslateMessage(&Message);
+                DispatchMessageW(&Message);
+            }
+        }
+        if (IsWindow(Window))
+        {
+            DestroyWindow(Window);
+        }
+        return State.Accepted;
+    }
+
     auto ConfirmPluginVersionWarnings(
             const std::vector<FPluginPreflightWarning>& Warnings) -> bool
     {
@@ -1295,30 +1545,23 @@ namespace
         {
             return true;
         }
-        std::wostringstream Text{};
-        constexpr std::size_t MaximumDisplayedWarnings = 20;
-        const auto Displayed = std::min(Warnings.size(), MaximumDisplayedWarnings);
-        for (std::size_t Index = 0; Index < Displayed; ++Index)
+        std::wostringstream Summary{};
+        Summary << Warnings.size()
+                << L" native plugin(s) declare an incompatible or unknown game version.\n"
+                   L"Review the scrollable list, then choose whether to launch. Cancel is "
+                   L"the safe default.";
+        std::wostringstream Details{};
+        for (const auto& Warning : Warnings)
         {
-            const auto& Warning = Warnings[Index];
-            Text << L"Invalid Version Mod: \"" << Warning.Name << L"\"\n"
-                 << L"Author: " << Warning.Author << L"\n"
-                 << Warning.Reason << L". This may cause crashes.\n"
-                 << L"File: " << Warning.Path.filename().wstring() << L"\n"
-                 << L"Declared game versions: " << Warning.DeclaredVersions << L"\n\n";
+            Details << L"Invalid Version Mod: \"" << Warning.Name << L"\"\r\n"
+                    << L"Author: " << Warning.Author << L"\r\n"
+                    << Warning.Reason << L". This may cause crashes.\r\n"
+                    << L"File: " << Warning.Path << L"\r\n"
+                    << L"Declared game versions: " << Warning.DeclaredVersions
+                    << L"\r\n\r\n";
         }
-        if (Warnings.size() > Displayed)
-        {
-            Text << L"...and " << (Warnings.size() - Displayed)
-                 << L" more plugin warning(s).\n\n";
-        }
-        Text << L"Please update these mods or send this report to their mod authors.\n\n"
-                L"Launch anyway? Choosing Yes remembers these exact DLL versions; "
-                L"updated DLLs are checked again.";
-        return MessageBoxW(nullptr, Text.str().c_str(),
-                           L"UNBSE - Invalid Version Mod Warning",
-                           MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2 | MB_SETFOREGROUND) ==
-               IDYES;
+        return ShowScrollableWarningDialog(
+                L"UNBSE - Invalid Version Mod Warning", Summary.str(), Details.str());
     }
 
     struct FPendingAssetWarning
@@ -1462,31 +1705,24 @@ namespace
         {
             return true;
         }
-        std::wostringstream Text{};
-        constexpr std::size_t MaximumDisplayedWarnings = 15;
-        const auto Displayed = std::min(Warnings.size(), MaximumDisplayedWarnings);
-        for (std::size_t Index = 0; Index < Displayed; ++Index)
+        std::wostringstream Summary{};
+        Summary << Warnings.size()
+                << L" asset container(s) differ from the verified retail format.\n"
+                   L"Review the scrollable evidence, then choose whether to launch. Cancel "
+                   L"is the safe default.";
+        std::wostringstream Details{};
+        for (const auto& Pending : Warnings)
         {
-            const auto& Warning = Warnings[Index].Warning;
-            Text << L"Invalid Asset Container: \"" << Warning.Name << L"\"\n"
-                 << Warning.Reason
-                 << L". This may prevent mounting or cause deserialization crashes.\n"
-                 << L"File: " << Warning.Path.filename().wstring() << L"\n"
-                 << L"Evidence: " << Warning.Evidence << L"\n\n";
+            const auto& Warning = Pending.Warning;
+            Details << L"Invalid Asset Container: \"" << Warning.Name << L"\"\r\n"
+                    << Warning.Reason
+                    << L". This may prevent mounting or cause deserialization crashes.\r\n"
+                    << L"File: " << Warning.Path << L"\r\n"
+                    << L"Evidence: " << Warning.Evidence << L"\r\n\r\n";
         }
-        if (Warnings.size() > Displayed)
-        {
-            Text << L"...and " << (Warnings.size() - Displayed)
-                 << L" more asset-container warning(s).\n\n";
-        }
-        Text << L"Update or rebuild these asset mods for the current Oblivion Remastered "
-                L"runtime. Send this report to the mod authors.\n\n"
-                L"Launch anyway? Choosing Yes remembers this game/container evidence; "
-                L"changed containers are checked again.";
-        return MessageBoxW(nullptr, Text.str().c_str(),
-                           L"UNBSE - Asset Container Compatibility Warning",
-                           MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2 | MB_SETFOREGROUND) ==
-               IDYES;
+        return ShowScrollableWarningDialog(
+                L"UNBSE - Asset Container Compatibility Warning", Summary.str(),
+                Details.str());
     }
 
     auto FindRemoteModule(const DWORD ProcessId, const std::wstring_view ModuleName)
@@ -1727,12 +1963,17 @@ namespace
         std::wcout
                 << L"UNBSELoader [--game-exe <path>] [--validate-only] [--] [game args...]\n"
                 << L"Locates the current Steam game, validates the pinned UE4SS runtime, "
-                   L"checks .pak/.utoc/.ucas containers, and "
+                   L"optionally checks .pak/.utoc/.ucas containers, and "
                    L"loads UE4SS after MO2's virtual filesystem is active.\n"
                 << L"[UNBSE] EnablePluginVersionWarning in UE4SS-settings.ini controls "
                    L"the normal-launch plugin warning and defaults to 0 (off).\n"
-                << L"--validate-only reports native plugin declarations regardless of "
-                   L"that setting, without showing a popup or launching the game.\n";
+                << L"[UNBSE] EnableAssetContainerWarning controls the normal-launch "
+                   L"asset-container warning and defaults to 0 (off).\n"
+                << L"[General] bUseUObjectArrayCache defaults to false; valid true/false "
+                   L"developer choices are preserved.\n"
+                << L"--validate-only reports plugin declarations and asset-container "
+                   L"findings regardless of those warning toggles, without popups or "
+                   L"launching the game.\n";
     }
 } // namespace
 
@@ -1753,11 +1994,12 @@ auto wmain(const int ArgumentCount, wchar_t** Arguments) -> int
         const auto Settings = SelfDirectory / L"ue4ss" / L"UE4SS-settings.ini";
         bool SettingsRepaired{};
         bool EnablePluginVersionWarning{};
+        bool EnableAssetContainerWarning{};
         if (!ValidatePinnedFile(UE4SS, ExpectedUE4SSBytes, ExpectedUE4SSSha256,
                                 L"Pinned UE4SS runtime") ||
             !EnsureCompatibleSettings(
                     Settings, Options.ValidateOnly, SettingsRepaired,
-                    EnablePluginVersionWarning))
+                    EnablePluginVersionWarning, EnableAssetContainerWarning))
         {
             return 2;
         }
@@ -1805,17 +2047,30 @@ auto wmain(const int ArgumentCount, wchar_t** Arguments) -> int
                    << L"Game: " << *Game << L"\n"
                    << L"UE4SS: " << UE4SS << L"\n";
         const auto AssetReview =
-                RC::UNBSE::Preflight::ReviewAssetContainers(GameDirectory);
+                Options.ValidateOnly || EnableAssetContainerWarning
+                        ? RC::UNBSE::Preflight::ReviewAssetContainers(GameDirectory)
+                        : RC::UNBSE::Preflight::FAssetContainerReview{};
         const auto PluginWarnings =
                 Options.ValidateOnly || EnablePluginVersionWarning
                         ? ReviewPluginVersions(GameDirectory)
                         : std::vector<FPluginPreflightWarning>{};
-        std::wcout << L"Asset containers: " << AssetReview.TocContainers << L" IoStore, "
-                   << AssetReview.PakContainers << L" pak; serialization header verified "
-                   << AssetReview.SerializationVersionsVerified << L", envelope-only "
-                   << AssetReview.SerializationVersionsUnverified
-                   << L"; pak index verified " << AssetReview.PakIndexesVerified
-                   << L", envelope-only " << AssetReview.PakIndexesUnverified << L".\n";
+        if (Options.ValidateOnly || EnableAssetContainerWarning)
+        {
+            std::wcout << L"Asset containers: " << AssetReview.TocContainers
+                       << L" IoStore, " << AssetReview.PakContainers
+                       << L" pak; serialization header verified "
+                       << AssetReview.SerializationVersionsVerified
+                       << L", envelope-only "
+                       << AssetReview.SerializationVersionsUnverified
+                       << L"; pak index verified " << AssetReview.PakIndexesVerified
+                       << L", envelope-only " << AssetReview.PakIndexesUnverified
+                       << L".\n";
+        }
+        else
+        {
+            std::wcout << L"Asset-container warning: disabled by [UNBSE] "
+                          L"EnableAssetContainerWarning = 0.\n";
+        }
         if (Options.ValidateOnly)
         {
             PrintPluginVersionWarnings(PluginWarnings);
@@ -1839,14 +2094,19 @@ auto wmain(const int ArgumentCount, wchar_t** Arguments) -> int
             }
             RememberPluginWarnings(PendingWarnings, GameHash);
         }
-        const auto PendingAssets = PendingAssetWarnings(AssetReview.Warnings, GameHash);
-        PrintPendingAssetWarnings(PendingAssets);
-        if (!ConfirmAssetWarnings(PendingAssets))
+        if (EnableAssetContainerWarning)
         {
-            std::wcerr << L"CANCELLED: game launch stopped at the asset-container warning.\n";
-            return 8;
+            const auto PendingAssets =
+                    PendingAssetWarnings(AssetReview.Warnings, GameHash);
+            PrintPendingAssetWarnings(PendingAssets);
+            if (!ConfirmAssetWarnings(PendingAssets))
+            {
+                std::wcerr << L"CANCELLED: game launch stopped at the "
+                              L"asset-container warning.\n";
+                return 8;
+            }
+            RememberAssetWarnings(PendingAssets, GameHash);
         }
-        RememberAssetWarnings(PendingAssets, GameHash);
 
         auto CommandLine = BuildCommandLine(*Game, Options.GameArguments);
         std::vector<wchar_t> MutableCommandLine(CommandLine.begin(), CommandLine.end());

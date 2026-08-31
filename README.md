@@ -7,23 +7,25 @@ interfaces.
 
 ## Current release
 
-UNBSE `0.13.1-rc.1` is the current release candidate for Steam runtime
+UNBSE `0.13.2-rc.1` is the current release candidate for Steam runtime
 `1.512.105.0`.
 
-- The UE4SS host, UNBSE core, OBSE64 interoperability module, and loader are
-  Authenticode-signed and timestamped.
+- This rapid test candidate is intentionally unsigned. Do not treat it as a
+  publishable signed release.
 - ConsoleUtils `1.1` is supported through an exact, compatibility-only legacy
   ABI path. UNBSE does not package, rebuild, modify, or re-sign ConsoleUtils.
-- `UE4SS-settings.ini` now exposes the plugin-version warning toggle and ships
-  with it off. Users can opt back into the `Invalid Version Mod` list, while
-  `--validate-only` remains an explicit non-blocking report.
+- `UE4SS-settings.ini` exposes independent plugin-version and asset-container
+  warning toggles; both ship off. Opt-in warnings use a resizable dialog with a
+  scrollable evidence pane, while `--validate-only` remains a no-popup report.
+- `General.bUseUObjectArrayCache` ships `false` for startup stability, but the
+  loader now preserves a developer's explicit `true` or `false` choice.
 - The loader detects incompatible older `UE4SS-settings.ini` files and can
   repair only the required keys after creating a backup. It then exits and
   asks the user to restart through Vortex, MO2, or their normal launcher.
 - One archive supports manual installation, Vortex, and Mod Organizer 2 without
   overwriting `mods.txt`, `mods.json`, or third-party mod activation state.
 
-See the [0.13.1-rc.1 release notes](docs/release-notes-0.13.1-rc.1.md) for the
+See the [0.13.2-rc.1 release notes](docs/release-notes-0.13.2-rc.1.md) for the
 complete compatibility and verification details.
 
 ## Build a plugin
@@ -39,7 +41,7 @@ request only the runtime services they need.
 The documentation is kept with the source and is published as a static website
 from `main`, so the guide and machine-readable API describe the shipped SDK.
 
-The `0.13.1-rc.1` release candidate targets only the current Steam executable,
+The `0.13.2-rc.1` release candidate targets only the current Steam executable,
 `OblivionRemastered-Win64-Shipping.exe` version `1.512.105.0`. UNBSE includes its
 clean-room OBSE64 interoperability module and discovers compatible native plugins
 from `OBSE/Plugins`. Compatibility is determined plugin by plugin; support for
@@ -53,7 +55,7 @@ limits.
 
 ## Install
 
-UNBSE `0.13.1-rc.1` targets only the Steam executable version `1.512.105.0`.
+UNBSE `0.13.2-rc.1` targets only the Steam executable version `1.512.105.0`.
 The packaged UE4SS console is intentionally visible so its startup log, loaded
 mods, and UNBSE compatibility messages are immediately observable. The same log
 is retained in `ue4ss/UE4SS.log`.
@@ -64,11 +66,10 @@ game's `Win64` directory. Keep the existing `OBSE/Plugins` directory.
 
 ### One archive: manual, Vortex, or MO2
 
-Use the single `UNBSE-0.13.1-rc.1.zip` archive. For a manual install, extract it
+Use the single `UNBSE-0.13.2-rc.1.zip` archive. For a manual install, extract it
 directly into `Oblivion Remastered/OblivionRemastered/Binaries/Win64`. Launch
-`UNBSELoader.exe` for the settings and asset-container preflight; normal launch
-does not show the native plugin-version list with the packaged default. On first
-launch
+`UNBSELoader.exe` for settings validation and launch; normal launch skips both
+optional warning scans with the packaged defaults. On first launch
 after an upgrade, the loader checks the active `UE4SS-settings.ini` for every
 UNBSE-required key. If an older file is missing keys or contains incompatible
 values, it lists the differences and offers to repair only those keys. An
@@ -77,7 +78,7 @@ unrelated settings and comments are preserved. After a repair, the loader exits
 without starting the game and asks you to launch it again from Vortex, MO2, or
 your normal launcher. `--validate-only` reports the same differences without
 changing the file. The packaged and repaired INI also contains the comment
-marker `UNBSE-Settings-Profile: 0.13.1-rc.1` for identification.
+marker `UNBSE-Settings-Profile: 0.13.2-rc.1` for identification.
 
 For Vortex, install and enable the same zip,
 remove the separate Nexus UE4SS package (mod 32) if present, disable Vortex's
@@ -92,7 +93,7 @@ state. This is the only install archive published for the release.
 
 ### Mod Organizer 2
 
-1. Install the same `UNBSE-0.13.1-rc.1.zip` as one MO2 mod, accept the Oblivion
+1. Install the same `UNBSE-0.13.2-rc.1.zip` as one MO2 mod, accept the Oblivion
    Remastered plugin's automatic file-tree fix, and enable it. The plugin moves
    the complete self-contained payload under `Root`; do not use Root Builder,
    rename `dwmapi.dll`, or configure a force-loaded library.
@@ -129,6 +130,7 @@ setting, which defaults to off:
 ```ini
 [UNBSE]
 EnablePluginVersionWarning = 0
+EnableAssetContainerWarning = 0
 ```
 
 With `0`, normal `UNBSELoader.exe` launches do not scan DLL declarations in
@@ -143,9 +145,18 @@ and troubleshooting regardless of the setting. It reads declarations without
 loading or executing the DLLs, prints findings without a popup, and does not
 launch the game.
 
+When enabled, the plugin warning uses a resizable native window with a
+scrollable evidence pane and fixed `Launch Anyway` and `Cancel` buttons. Large
+mod lists therefore cannot push the decision buttons off-screen. The complete
+report is also printed in the loader console.
+
 ### Asset-container warning
 
-The same prelaunch pass recursively checks the `.pak`, `.utoc`, and `.ucas`
+`EnableAssetContainerWarning = 0` makes normal launches skip the asset-container
+scan, popup, launch gate, and acceptance-state update. Set it to `1` to opt into
+the warning. Values other than `0` or `1` are repaired to the off default.
+
+When enabled, the prelaunch pass recursively checks the `.pak`, `.utoc`, and `.ucas`
 files visible under `OblivionRemastered/Content/Paks`, including files deployed
 by Vortex or exposed inside MO2's virtual game tree. It verifies IoStore magic,
 table bounds, container identity, required UCAS partitions, and the current
@@ -161,10 +172,31 @@ file under `%LOCALAPPDATA%\UNBSE`; changed evidence is checked again. Containers
 whose header or pak index cannot be inspected within the bounded preflight are
 reported as `envelope-only`, not rejected merely for being unverifiable.
 
+The opt-in asset warning uses the same resizable, scrollable window as the
+plugin warning, so every finding remains reviewable while the decision buttons
+stay fixed at the bottom.
+
 This is a container-envelope and top-level serialization-header check. It does
 not deserialize every cooked package, validate every Unreal custom version or
 asset schema, or prove that a mod is behaviorally compatible. Use
 `UNBSELoader.exe --validate-only` to print the results without UI or launch.
+
+### Developer UObject array cache
+
+The package uses this safe launch default:
+
+```ini
+[General]
+bUseUObjectArrayCache = false
+```
+
+`false` disables UE4SS's global UObject cache and GUObjectArray create/delete
+listeners. It does not stop Unreal asset loading, UObject creation, UNBSE, or
+OBSE plugin loading; it avoids an early-startup cache/listener path that UE4SS
+itself notes can contribute to startup crashes. Some developer tooling—notably
+cache-dependent Live View operations—requires the cache. Developers can set the
+value to `true`; the loader now preserves either valid lowercase `true` or
+`false` choice across launches and repairs any other value to `false`.
 
 To remove UNBSE, delete `ue4ss/Mods/UNBSE` and
 `ue4ss/Mods/UNBSEOBSE64Interop`. Remove `dwmapi.dll` and `ue4ss/UE4SS.dll` only

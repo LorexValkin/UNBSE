@@ -48,8 +48,8 @@ $manifestFull = Get-CanonicalFile $ManifestPath
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $repositoryRoot = $repositoryRoot.TrimEnd(
     [IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
-$coreVersion = '0.13.1-rc.1'
-$foundationId = 'ue4ss-3.0.1-beta0-68dd45cb-unbse-patchset-v1-mod-0.13.1-rc.1'
+$coreVersion = '0.13.2-rc.1'
+$foundationId = 'ue4ss-3.0.1-beta0-68dd45cb-unbse-patchset-v1-mod-0.13.2-rc.1'
 $coreSourcePaths = @(
     'include/UNBSEAddonHostV1.h',
     'include/UNBSEMessagingV1.h',
@@ -126,6 +126,16 @@ if ($null -eq $manifest.unbseMod.buildGeneratedState.patternsleuthCargoLock) {
 }
 if ([string]$manifest.defaultSettings.'UNBSE.EnablePluginVersionWarning' -cne '0') {
     Fail 'the packaged plugin-version warning default must be 0 (off)'
+}
+if ([string]$manifest.defaultSettings.'UNBSE.EnableAssetContainerWarning' -cne '0') {
+    Fail 'the packaged asset-container warning default must be 0 (off)'
+}
+if ([string]$manifest.defaultSettings.'General.bUseUObjectArrayCache' -cne 'false') {
+    Fail 'the packaged UObject array cache default must be false'
+}
+if ($null -ne $manifest.requiredSettings.PSObject.Properties[
+        'General.bUseUObjectArrayCache']) {
+    Fail 'the UObject array cache must be developer-selectable, not hard-required'
 }
 $generatedState = $manifest.unbseMod.buildGeneratedState
 
