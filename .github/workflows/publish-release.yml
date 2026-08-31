@@ -1,0 +1,50 @@
+name: Publish UNBSE 0.13.5 prerelease
+
+on:
+  push:
+    tags:
+      - v0.13.5
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v6
+
+      - name: Verify release inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REF_NAME}" = "v0.13.5"
+          test "$(jq -r '.unbseMod.version' ue4ss/foundation-manifest.json)" = "0.13.5"
+          test -f docs/release-notes-0.13.5.md
+          test -f release/UNBSE-0.13.5.zip
+          test -f release/UNBSE-0.13.5-source.zip
+          test -f release/SHA256SUMS.txt
+          (
+            cd release
+            sha256sum --check SHA256SUMS.txt
+            unzip -tq UNBSE-0.13.5.zip
+            unzip -tq UNBSE-0.13.5-source.zip
+          )
+
+      - name: Publish GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "${GITHUB_REF_NAME}" \
+            release/UNBSE-0.13.5.zip \
+            release/UNBSE-0.13.5-source.zip \
+            release/SHA256SUMS.txt \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "${GITHUB_SHA}" \
+            --title "UNBSE 0.13.5" \
+            --notes-file docs/release-notes-0.13.5.md \
+            --prerelease \
+            --verify-tag
