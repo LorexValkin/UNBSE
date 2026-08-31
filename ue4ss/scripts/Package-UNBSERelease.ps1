@@ -106,7 +106,7 @@ $foundationArchive = Assert-UNBSENoReparsePath $FoundationArchivePath
 $corePackage = Assert-UNBSENoReparsePath $CorePackageRoot
 $manifest = Get-Content -LiteralPath $manifestFile -Raw | ConvertFrom-Json
 $version = [string]$manifest.unbseMod.version
-if ($version -cne '0.13.2-rc.2') {
+if ($version -cne '0.13.5') {
     throw "Unexpected release version: $version"
 }
 if ((Get-Item -LiteralPath $foundationArchive).Length -ne
@@ -171,7 +171,7 @@ try {
     Set-UNBSEDefaultIni `
         -Path $settingsPath `
         -DefaultSettings $defaultSettings
-    $settingsProfileMarker = '; UNBSE-Settings-Profile: 0.13.2-rc.2'
+    $settingsProfileMarker = '; UNBSE-Settings-Profile: 0.13.5'
     $settingsLines = [IO.File]::ReadAllLines($settingsPath)
     if ($settingsLines -cnotcontains $settingsProfileMarker) {
         [IO.File]::WriteAllLines(
@@ -193,9 +193,14 @@ try {
             [long]$artifact.packageBytes
         } else { [long]$artifact.bytes }
         $packagedFile = Assert-UNBSENoReparsePath (Join-Path $runtimeStage $packageRelative)
-        if ((Get-Item -LiteralPath $packagedFile).Length -ne $packageBytes -or
-            (Get-UNBSEHash $packagedFile) -cne $packageSha256.ToUpperInvariant()) {
-            throw "Packaged runtime artifact differs from its pin: $packageRelative"
+        $actualPackageBytes = (Get-Item -LiteralPath $packagedFile).Length
+        $actualPackageSha256 = Get-UNBSEHash $packagedFile
+        if ($actualPackageBytes -ne $packageBytes -or
+            $actualPackageSha256 -cne $packageSha256.ToUpperInvariant()) {
+            throw (
+                "Packaged runtime artifact differs from its pin: $packageRelative; " +
+                "expected $packageBytes bytes/$packageSha256, " +
+                "actual $actualPackageBytes bytes/$actualPackageSha256")
         }
     }
     foreach ($artifact in $packageManifest.artifacts) {
@@ -229,7 +234,7 @@ try {
         @($manifest.patchSet.patches | ForEach-Object { [string]$_.relativePath }) +
         @('.gitattributes', 'README.md', 'docs/release-notes-0.12.0.md',
             'docs/release-notes-0.13.0-rc.1.md',
-            'docs/release-notes-0.13.2-rc.2.md',
+            'docs/release-notes-0.13.5.md',
             'ue4ss/foundation-manifest.json')
     ) | Sort-Object -Unique
     foreach ($relativePath in $sourcePaths) {

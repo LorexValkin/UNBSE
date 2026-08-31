@@ -48,8 +48,8 @@ $manifestFull = Get-CanonicalFile $ManifestPath
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $repositoryRoot = $repositoryRoot.TrimEnd(
     [IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
-$coreVersion = '0.13.2-rc.2'
-$foundationId = 'ue4ss-3.0.1-beta0-68dd45cb-unbse-patchset-v1-mod-0.13.2-rc.2'
+$coreVersion = '0.13.5'
+$foundationId = 'ue4ss-3.0.1-beta0-68dd45cb-unbse-patchset-v1-mod-0.13.5'
 $coreSourcePaths = @(
     'include/UNBSEAddonHostV1.h',
     'include/UNBSEMessagingV1.h',
@@ -230,8 +230,11 @@ $manifest.unbseMod = [ordered]@{
 $proposedText = ($manifest | ConvertTo-Json -Depth 100) + "`n"
 $canonicalOriginalText = $originalText.Replace("`r`n", "`n").Replace("`r", "`n")
 $canonicalProposedText = $proposedText.Replace("`r`n", "`n").Replace("`r", "`n")
+$canonicalOriginalObject = (($originalText | ConvertFrom-Json) |
+    ConvertTo-Json -Depth 100 -Compress)
+$canonicalProposedObject = ($manifest | ConvertTo-Json -Depth 100 -Compress)
 if ($Check) {
-    if ($canonicalOriginalText -cne $canonicalProposedText) {
+    if ($canonicalOriginalObject -cne $canonicalProposedObject) {
         Write-Error 'UNBSE core manifest boundary or source pins are stale.'
         exit 1
     }

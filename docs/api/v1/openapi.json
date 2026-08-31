@@ -118,8 +118,9 @@
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/Release" },
                 "example": {
-                  "unbseVersion": "0.13.2-rc.2",
-                  "releaseChannel": "release-candidate",
+                  "unbseVersion": "0.13.5",
+                  "releaseChannel": "internal-candidate",
+                  "validationStatus": "in-game-testing-required",
                   "supportedGame": {
                     "name": "Oblivion Remastered",
                     "store": "Steam",
@@ -134,7 +135,7 @@
                     "ue4ssDistribution": "bundled pinned runtime",
                     "ue4ssVersion": "3.0.1 Beta #0",
                     "ue4ssCommit": "68dd45cb5630bd7745310c6630b19c14345176a2",
-                    "foundationId": "ue4ss-3.0.1-beta0-68dd45cb-unbse-patchset-v1-mod-0.13.2-rc.2"
+                    "foundationId": "ue4ss-3.0.1-beta0-68dd45cb-unbse-patchset-v1-mod-0.13.5"
                   },
                   "sdk": {
                     "apiVersion": "v1",
@@ -145,6 +146,7 @@
                     "relocationAbiVersion": 1
                   },
                   "compatibility": {
+                    "ue4ssCppMods": "current-16-slot-and-legacy-11-slot-profiled",
                     "nativePlugins": "plugin-by-plugin",
                     "obse64Plugins": "plugin-by-plugin",
                     "policy": "report-and-attempt"
@@ -370,8 +372,9 @@
       "Compatibility": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["nativePlugins", "obse64Plugins", "policy"],
+        "required": ["ue4ssCppMods", "nativePlugins", "obse64Plugins", "policy"],
         "properties": {
+          "ue4ssCppMods": { "type": "string", "const": "current-16-slot-and-legacy-11-slot-profiled" },
           "nativePlugins": { "type": "string", "const": "plugin-by-plugin" },
           "obse64Plugins": { "type": "string", "const": "plugin-by-plugin" },
           "policy": { "type": "string", "const": "report-and-attempt" }
@@ -380,10 +383,11 @@
       "Release": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["unbseVersion", "releaseChannel", "supportedGame", "runtime", "sdk", "compatibility"],
+        "required": ["unbseVersion", "releaseChannel", "validationStatus", "supportedGame", "runtime", "sdk", "compatibility"],
         "properties": {
           "unbseVersion": { "type": "string" },
-          "releaseChannel": { "type": "string", "enum": ["release-candidate", "stable"] },
+          "releaseChannel": { "type": "string", "enum": ["internal-candidate", "release-candidate", "stable"] },
+          "validationStatus": { "type": "string", "enum": ["in-game-testing-required", "validated"] },
           "supportedGame": { "$ref": "#/components/schemas/SupportedGame" },
           "runtime": { "$ref": "#/components/schemas/Runtime" },
           "sdk": { "$ref": "#/components/schemas/SdkVersions" },
