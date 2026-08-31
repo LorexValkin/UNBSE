@@ -167,4 +167,32 @@ function Set-UNBSERequiredIni {
     [IO.File]::WriteAllLines($Path,$lines,[Text.UTF8Encoding]::new($false))
 }
 
-Export-ModuleMember -Function Get-UNBSEFoundationAudit,Set-UNBSERequiredIni,Assert-UNBSENoReparsePath,Get-UNBSEHash,Get-UNBSEHashBytes
+function Set-UNBSEDefaultIni {
+    param([string]$Path,[hashtable]$DefaultSettings)
+    $parsed=ConvertFrom-UNBSEIni $Path $DefaultSettings
+    foreach($error in $parsed.Errors) { if ($error -match '^Duplicate required') { throw $error } }
+    $lines=[Collections.Generic.List[string]]::new(); $lines.AddRange([string[]]$parsed.Lines)
+    $bySection=@{}; foreach($key in $DefaultSettings.Keys){$section,$name=$key.Split('.',2); if(-not $bySection.ContainsKey($section)){$bySection[$section]=@{}}; $bySection[$section][$name]=[string]$DefaultSettings[$key]}
+    # Existing values are user choices. Remove them from the insertion set without
+    # rewriting their lines; only absent settings receive the packaged default.
+    foreach($entry in @($parsed.Values.Values | Sort-Object Line)) {
+        [void]$bySection[$entry.Section].Remove($entry.Key)
+    }
+    foreach($section in @($bySection.Keys | Sort-Object)){
+        if($bySection[$section].Count -eq 0) { continue }
+        $header=-1
+        for($i=0;$i -lt $lines.Count;$i++){if($lines[$i].Trim() -ceq "[$section]"){$header=$i;break}}
+        if($header -lt 0) {
+            if($lines.Count -gt 0 -and $lines[$lines.Count-1] -ne '') { $lines.Add('') }
+            $lines.Add("[$section]")
+            foreach($name in @($bySection[$section].Keys | Sort-Object)){ $lines.Add("$name = $($bySection[$section][$name])") }
+            continue
+        }
+        $insert=$header+1
+        while($insert -lt $lines.Count -and $lines[$insert] -notmatch '^\s*\['){$insert++}
+        foreach($name in @($bySection[$section].Keys | Sort-Object)){ $lines.Insert($insert,"$name = $($bySection[$section][$name])"); $insert++ }
+    }
+    [IO.File]::WriteAllLines($Path,$lines,[Text.UTF8Encoding]::new($false))
+}
+
+Export-ModuleMember -Function Get-UNBSEFoundationAudit,Set-UNBSERequiredIni,Set-UNBSEDefaultIni,Assert-UNBSENoReparsePath,Get-UNBSEHash,Get-UNBSEHashBytes

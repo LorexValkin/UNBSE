@@ -17,9 +17,9 @@ namespace RC::UNBSE
     namespace
     {
         constexpr auto FoundationId =
-                STR("ue4ss-3.0.1-beta0-68dd45cb-unbse-patchset-v1-mod-0.13.0-rc.1");
+                STR("ue4ss-3.0.1-beta0-68dd45cb-unbse-patchset-v1-mod-0.13.1-rc.1");
         constexpr auto FoundationIdUtf8 =
-                "ue4ss-3.0.1-beta0-68dd45cb-unbse-patchset-v1-mod-0.13.0-rc.1";
+                "ue4ss-3.0.1-beta0-68dd45cb-unbse-patchset-v1-mod-0.13.1-rc.1";
 
         auto LifecycleResultName(const std::uint32_t Result) -> const wchar_t*
         {
@@ -34,7 +34,7 @@ namespace RC::UNBSE
     UNBSECoreMod::UNBSECoreMod()
     {
         ModName = STR("UNBSE");
-        ModVersion = STR("0.13.0-rc.1");
+        ModVersion = STR("0.13.1-rc.1");
         ModDescription = STR("Unblivion Script Extender runtime capability injector");
         ModAuthors = STR("Unblivion Project");
         ModIntendedSDKVersion = STR("3.0.1");
@@ -67,7 +67,7 @@ namespace RC::UNBSE
                         [](const std::string& Event) {
                             Output::send(STR("[UNBSE.Addon] {}\n"), ensure_str(Event));
                         },
-                        FAddonRuntimeIdentity{"0.13.0-rc.1", FoundationIdUtf8});
+                        FAddonRuntimeIdentity{"0.13.1-rc.1", FoundationIdUtf8});
                 if (!PublishAddonRegistry(m_addon_registry.get()))
                 {
                     Output::send<LogLevel::Error>(
@@ -82,7 +82,7 @@ namespace RC::UNBSE
 
         Output::send(
                 STR("[UNBSE.Core] {{\"schema\":\"UNBSE.CoreStartup\",\"schemaVersion\":1,"
-                    "\"foundationId\":\"{}\",\"version\":\"0.13.0-rc.1\","
+                    "\"foundationId\":\"{}\",\"version\":\"0.13.1-rc.1\","
                     "\"role\":\"runtime-capability-injector\","
                     "\"compatibilityPolicy\":\"report-and-attempt\","
                     "\"bundledProbes\":false,\"bundledMcp\":false,\"status\":\"constructed\"}}\n"),

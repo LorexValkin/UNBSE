@@ -50,13 +50,14 @@ namespace
     constexpr std::wstring_view ExpectedProxySha256 =
             L"02822565CF0E4CC607BADB6F17F3F6C4D37A4B6ED05849D98CD18C6C685183B5";
     constexpr std::string_view SettingsProfileMarker =
-            "; UNBSE-Settings-Profile: 0.13.0-rc.1";
+            "; UNBSE-Settings-Profile: 0.13.1-rc.1";
 
     struct FRequiredIniSetting
     {
         std::string_view Section{};
         std::string_view Key{};
         std::string_view Value{};
+        bool PreserveValidBoolean{};
     };
 
     constexpr std::array RequiredIniSettings{
@@ -77,7 +78,9 @@ namespace
             FRequiredIniSetting{"Hooks", "HookUObjectProcessEvent", "1"},
             FRequiredIniSetting{"Hooks", "HookProcessInternal", "1"},
             FRequiredIniSetting{"Hooks", "HookProcessLocalScriptFunction", "1"},
-            FRequiredIniSetting{"Hooks", "HookLoadMap", "1"}};
+            FRequiredIniSetting{"Hooks", "HookLoadMap", "1"},
+            FRequiredIniSetting{
+                    "UNBSE", "EnablePluginVersionWarning", "0", true}};
 
     class FHandle
     {
@@ -689,7 +692,11 @@ namespace
                     continue;
                 }
                 Found = true;
-                if (Setting->Value != Required.Value)
+                const bool ValidBoolean =
+                        Setting->Value == "0" || Setting->Value == "1";
+                if ((!Required.PreserveValidBoolean &&
+                     Setting->Value != Required.Value) ||
+                    (Required.PreserveValidBoolean && !ValidBoolean))
                 {
                     WrongValue = std::string{Setting->Value};
                 }
@@ -698,7 +705,8 @@ namespace
             {
                 Result.Issues.emplace_back(
                         "[" + std::string{Required.Section} + "] " +
-                        std::string{Required.Key} + " is missing (required " +
+                        std::string{Required.Key} + " is missing (" +
+                        (Required.PreserveValidBoolean ? "default " : "required ") +
                         std::string{Required.Value} + ")");
             }
             else if (WrongValue)
@@ -706,10 +714,34 @@ namespace
                 Result.Issues.emplace_back(
                         "[" + std::string{Required.Section} + "] " +
                         std::string{Required.Key} + " is '" + *WrongValue +
-                        "' (required '" + std::string{Required.Value} + "')");
+                        "' (" +
+                        (Required.PreserveValidBoolean ? "expected 0 or 1; default '"
+                                                       : "required '") +
+                        std::string{Required.Value} + "')");
             }
         }
         return Result;
+    }
+
+    auto PluginVersionWarningEnabled(const FIniDocument& Document) -> bool
+    {
+        std::string_view CurrentSection{};
+        bool Enabled{};
+        for (const auto& Line : Document.Lines)
+        {
+            if (const auto Section = ParseIniSection(Line))
+            {
+                CurrentSection = *Section;
+                continue;
+            }
+            const auto Setting = ParseIniSetting(Line);
+            if (Setting && CurrentSection == "UNBSE" &&
+                Setting->Key == "EnablePluginVersionWarning")
+            {
+                Enabled = Setting->Value == "1";
+            }
+        }
+        return Enabled;
     }
 
     auto ApplyRequiredIniSetting(FIniDocument& Document,
@@ -758,7 +790,13 @@ namespace
         {
             for (const auto Index : Matches)
             {
-                Document.Lines[Index] = Replacement;
+                const auto Setting = ParseIniSetting(Document.Lines[Index]);
+                const bool ValidBoolean =
+                        Setting && (Setting->Value == "0" || Setting->Value == "1");
+                if (!Required.PreserveValidBoolean || !ValidBoolean)
+                {
+                    Document.Lines[Index] = Replacement;
+                }
             }
             return;
         }
@@ -919,9 +957,11 @@ namespace
     }
 
     auto EnsureCompatibleSettings(const fs::path& Path, const bool ValidateOnly,
-                                  bool& Repaired) -> bool
+                                  bool& Repaired,
+                                  bool& EnablePluginVersionWarning) -> bool
     {
         Repaired = false;
+        EnablePluginVersionWarning = false;
         const auto Review = ReadIniDocument(Path);
         if (!Review.Error.empty())
         {
@@ -930,10 +970,12 @@ namespace
         }
         if (Review.Issues.empty())
         {
+            EnablePluginVersionWarning =
+                    PluginVersionWarningEnabled(Review.Document);
             return true;
         }
 
-        std::wcerr << L"ERROR: UE4SS-settings.ini is not UNBSE 0.13.0-rc.1 compliant:\n";
+        std::wcerr << L"ERROR: UE4SS-settings.ini is not UNBSE 0.13.1-rc.1 compliant:\n";
         for (const auto& Issue : Review.Issues)
         {
             std::wcerr << L"  - " << Utf8ToWide(Issue) << L"\n";
@@ -946,7 +988,7 @@ namespace
         }
 
         std::wostringstream Prompt{};
-        Prompt << L"UE4SS-settings.ini is not compatible with UNBSE 0.13.0-rc.1.\n\n";
+        Prompt << L"UE4SS-settings.ini is not compatible with UNBSE 0.13.1-rc.1.\n\n";
         constexpr std::size_t MaximumDisplayedIssues = 15;
         const auto Displayed = std::min(Review.Issues.size(), MaximumDisplayedIssues);
         for (std::size_t Index = 0; Index < Displayed; ++Index)
@@ -1685,10 +1727,12 @@ namespace
         std::wcout
                 << L"UNBSELoader [--game-exe <path>] [--validate-only] [--] [game args...]\n"
                 << L"Locates the current Steam game, validates the pinned UE4SS runtime, "
-                   L"statically checks native plugins and .pak/.utoc/.ucas containers, and "
+                   L"checks .pak/.utoc/.ucas containers, and "
                    L"loads UE4SS after MO2's virtual filesystem is active.\n"
-                << L"--validate-only reports findings without showing a popup or launching "
-                   L"the game.\n";
+                << L"[UNBSE] EnablePluginVersionWarning in UE4SS-settings.ini controls "
+                   L"the normal-launch plugin warning and defaults to 0 (off).\n"
+                << L"--validate-only reports native plugin declarations regardless of "
+                   L"that setting, without showing a popup or launching the game.\n";
     }
 } // namespace
 
@@ -1708,10 +1752,12 @@ auto wmain(const int ArgumentCount, wchar_t** Arguments) -> int
         const auto UE4SS = SelfDirectory / L"ue4ss" / L"UE4SS.dll";
         const auto Settings = SelfDirectory / L"ue4ss" / L"UE4SS-settings.ini";
         bool SettingsRepaired{};
+        bool EnablePluginVersionWarning{};
         if (!ValidatePinnedFile(UE4SS, ExpectedUE4SSBytes, ExpectedUE4SSSha256,
                                 L"Pinned UE4SS runtime") ||
             !EnsureCompatibleSettings(
-                    Settings, Options.ValidateOnly, SettingsRepaired))
+                    Settings, Options.ValidateOnly, SettingsRepaired,
+                    EnablePluginVersionWarning))
         {
             return 2;
         }
@@ -1758,9 +1804,12 @@ auto wmain(const int ArgumentCount, wchar_t** Arguments) -> int
                    << (ExactGame ? L"exact hash verified" : L"unverified attempt") << L")\n"
                    << L"Game: " << *Game << L"\n"
                    << L"UE4SS: " << UE4SS << L"\n";
-        const auto PluginWarnings = ReviewPluginVersions(GameDirectory);
         const auto AssetReview =
                 RC::UNBSE::Preflight::ReviewAssetContainers(GameDirectory);
+        const auto PluginWarnings =
+                Options.ValidateOnly || EnablePluginVersionWarning
+                        ? ReviewPluginVersions(GameDirectory)
+                        : std::vector<FPluginPreflightWarning>{};
         std::wcout << L"Asset containers: " << AssetReview.TocContainers << L" IoStore, "
                    << AssetReview.PakContainers << L" pak; serialization header verified "
                    << AssetReview.SerializationVersionsVerified << L", envelope-only "
@@ -1777,14 +1826,19 @@ auto wmain(const int ArgumentCount, wchar_t** Arguments) -> int
                        << L" asset-container warning(s) reported.\n";
             return 0;
         }
-        const auto PendingWarnings = PendingPluginWarnings(PluginWarnings, GameHash);
-        PrintPluginVersionWarnings(PendingWarnings);
-        if (!ConfirmPluginVersionWarnings(PendingWarnings))
+        if (EnablePluginVersionWarning)
         {
-            std::wcerr << L"CANCELLED: game launch stopped at the plugin-version warning.\n";
-            return 7;
+            const auto PendingWarnings =
+                    PendingPluginWarnings(PluginWarnings, GameHash);
+            PrintPluginVersionWarnings(PendingWarnings);
+            if (!ConfirmPluginVersionWarnings(PendingWarnings))
+            {
+                std::wcerr
+                        << L"CANCELLED: game launch stopped at the plugin-version warning.\n";
+                return 7;
+            }
+            RememberPluginWarnings(PendingWarnings, GameHash);
         }
-        RememberPluginWarnings(PendingWarnings, GameHash);
         const auto PendingAssets = PendingAssetWarnings(AssetReview.Warnings, GameHash);
         PrintPendingAssetWarnings(PendingAssets);
         if (!ConfirmAssetWarnings(PendingAssets))

@@ -7,20 +7,23 @@ interfaces.
 
 ## Current release
 
-UNBSE `0.13.0-rc.1` is the current release candidate for Steam runtime
+UNBSE `0.13.1-rc.1` is the current release candidate for Steam runtime
 `1.512.105.0`.
 
 - The UE4SS host, UNBSE core, OBSE64 interoperability module, and loader are
   Authenticode-signed and timestamped.
 - ConsoleUtils `1.1` is supported through an exact, compatibility-only legacy
   ABI path. UNBSE does not package, rebuild, modify, or re-sign ConsoleUtils.
+- `UE4SS-settings.ini` now exposes the plugin-version warning toggle and ships
+  with it off. Users can opt back into the `Invalid Version Mod` list, while
+  `--validate-only` remains an explicit non-blocking report.
 - The loader detects incompatible older `UE4SS-settings.ini` files and can
   repair only the required keys after creating a backup. It then exits and
   asks the user to restart through Vortex, MO2, or their normal launcher.
 - One archive supports manual installation, Vortex, and Mod Organizer 2 without
   overwriting `mods.txt`, `mods.json`, or third-party mod activation state.
 
-See the [0.13.0-rc.1 release notes](docs/release-notes-0.13.0-rc.1.md) for the
+See the [0.13.1-rc.1 release notes](docs/release-notes-0.13.1-rc.1.md) for the
 complete compatibility and verification details.
 
 ## Build a plugin
@@ -36,7 +39,7 @@ request only the runtime services they need.
 The documentation is kept with the source and is published as a static website
 from `main`, so the guide and machine-readable API describe the shipped SDK.
 
-The `0.13.0-rc.1` release candidate targets only the current Steam executable,
+The `0.13.1-rc.1` release candidate targets only the current Steam executable,
 `OblivionRemastered-Win64-Shipping.exe` version `1.512.105.0`. UNBSE includes its
 clean-room OBSE64 interoperability module and discovers compatible native plugins
 from `OBSE/Plugins`. Compatibility is determined plugin by plugin; support for
@@ -50,7 +53,7 @@ limits.
 
 ## Install
 
-UNBSE `0.13.0-rc.1` targets only the Steam executable version `1.512.105.0`.
+UNBSE `0.13.1-rc.1` targets only the Steam executable version `1.512.105.0`.
 The packaged UE4SS console is intentionally visible so its startup log, loaded
 mods, and UNBSE compatibility messages are immediately observable. The same log
 is retained in `ue4ss/UE4SS.log`.
@@ -61,10 +64,11 @@ game's `Win64` directory. Keep the existing `OBSE/Plugins` directory.
 
 ### One archive: manual, Vortex, or MO2
 
-Use the single `UNBSE-0.13.0-rc.1.zip` archive. For a manual install, extract it
+Use the single `UNBSE-0.13.1-rc.1.zip` archive. For a manual install, extract it
 directly into `Oblivion Remastered/OblivionRemastered/Binaries/Win64`. Launch
-`UNBSELoader.exe` when you want the prelaunch plugin-version check; the normal
-Steam launch remains available after the settings preflight. On first launch
+`UNBSELoader.exe` for the settings and asset-container preflight; normal launch
+does not show the native plugin-version list with the packaged default. On first
+launch
 after an upgrade, the loader checks the active `UE4SS-settings.ini` for every
 UNBSE-required key. If an older file is missing keys or contains incompatible
 values, it lists the differences and offers to repair only those keys. An
@@ -73,7 +77,7 @@ unrelated settings and comments are preserved. After a repair, the loader exits
 without starting the game and asks you to launch it again from Vortex, MO2, or
 your normal launcher. `--validate-only` reports the same differences without
 changing the file. The packaged and repaired INI also contains the comment
-marker `UNBSE-Settings-Profile: 0.13.0-rc.1` for identification.
+marker `UNBSE-Settings-Profile: 0.13.1-rc.1` for identification.
 
 For Vortex, install and enable the same zip,
 remove the separate Nexus UE4SS package (mod 32) if present, disable Vortex's
@@ -88,7 +92,7 @@ state. This is the only install archive published for the release.
 
 ### Mod Organizer 2
 
-1. Install the same `UNBSE-0.13.0-rc.1.zip` as one MO2 mod, accept the Oblivion
+1. Install the same `UNBSE-0.13.1-rc.1.zip` as one MO2 mod, accept the Oblivion
    Remastered plugin's automatic file-tree fix, and enable it. The plugin moves
    the complete self-contained payload under `Root`; do not use Root Builder,
    rename `dwmapi.dll`, or configure a force-loaded library.
@@ -117,22 +121,27 @@ startup also logs marker-independent starts for `UNBSE` and
 If startup reaches `Event loop start` without those records, the active
 deployment is not running the UNBSE modules.
 
-### Plugin-version warning
+### Plugin-version diagnostic
 
-Before creating the game process, `UNBSELoader.exe` reads each DLL declaration
-in `OBSE/Plugins` without loading or executing the DLL. A grouped
-`Invalid Version Mod` warning appears when a plugin declares only other game
-versions, claims version independence without naming `1.512.105.0`, has an
-unreadable declaration, or lacks its required load export. The warning shows the
-plugin name, author, declaration class, filename, and declared game versions.
+The packaged and repaired `UE4SS-settings.ini` contains this user-controlled
+setting, which defaults to off:
 
-No is the default and cancels launch. Yes continues and remembers the exact game
-and plugin SHA-256 pair, so the same warning does not require repeated input;
-changing the game or plugin binary causes another check. This is an early-risk
-warning, not proof that a plugin will crash or that an explicitly declared
-plugin is safe. Use `UNBSELoader.exe --validate-only` to print every current
-warning without showing a popup or launching the game. The acceptance file is
-stored under `%LOCALAPPDATA%\UNBSE`.
+```ini
+[UNBSE]
+EnablePluginVersionWarning = 0
+```
+
+With `0`, normal `UNBSELoader.exe` launches do not scan DLL declarations in
+`OBSE/Plugins`, show an `Invalid Version Mod` list, ask for consent, or remember
+plugin-warning choices. Set it to `1` to restore the warning, launch gate, and
+per-binary acceptance behavior. Values other than `0` or `1` are repaired to
+the off default. Native plugin compatibility remains plugin-by-plugin and is
+not guaranteed.
+
+`UNBSELoader.exe --validate-only` retains the opt-in static report for authors
+and troubleshooting regardless of the setting. It reads declarations without
+loading or executing the DLLs, prints findings without a popup, and does not
+launch the game.
 
 ### Asset-container warning
 
