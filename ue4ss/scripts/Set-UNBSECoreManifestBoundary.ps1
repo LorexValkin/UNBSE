@@ -48,8 +48,8 @@ $manifestFull = Get-CanonicalFile $ManifestPath
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $repositoryRoot = $repositoryRoot.TrimEnd(
     [IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
-$coreVersion = '0.12.0'
-$foundationId = 'ue4ss-3.0.1-beta0-68dd45cb-unbse-patchset-v1-mod-0.12.0'
+$coreVersion = '0.13.0-rc.1'
+$foundationId = 'ue4ss-3.0.1-beta0-68dd45cb-unbse-patchset-v1-mod-0.13.0-rc.1'
 $coreSourcePaths = @(
     'include/UNBSEAddonHostV1.h',
     'include/UNBSEMessagingV1.h',

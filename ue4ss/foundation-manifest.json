@@ -1,7 +1,7 @@
 {
   "schema": "UNBSEUE4SSFoundation",
   "schemaVersion": 1,
-  "foundationId": "ue4ss-3.0.1-beta0-68dd45cb-unbse-patchset-v1-mod-0.12.0",
+  "foundationId": "ue4ss-3.0.1-beta0-68dd45cb-unbse-patchset-v1-mod-0.13.0-rc.1",
   "upstream": {
     "repository": "https://github.com/UE4SS-RE/RE-UE4SS.git",
     "commit": "68dd45cb5630bd7745310c6630b19c14345176a2",
@@ -42,8 +42,8 @@
       "relativePath": "ue4ss/UE4SS-settings.ini",
       "sha256": "4E9BBDB5F50A6DCAFFE4046EDB2D78669255C7ADC079AF98E8D3E364C3593E74",
       "bytes": 7848,
-      "packageSha256": "BADAE1123D871A62A6735D1BACC95FF28E6ED12CFD8FE6BEA4DE0055726CBCE9",
-      "packageBytes": 7848
+      "packageSha256": "38787A017F416BF63DA4BCE62CC72F821C310775659579DC95FBA72DEBEFA9C3",
+      "packageBytes": 7887
     },
     {
       "relativePath": "ue4ss/LICENSE",
@@ -142,12 +142,22 @@
         "expectedChangedPaths": [
           "UE4SS/src/UE4SSProgram.cpp"
         ]
+      },
+      {
+        "relativePath": "ue4ss/patches/0007-support-consoleutils-1.1-legacy-cpp-abi.patch",
+        "sha256": "74386010B1C6FF0F3BB5A8B3B562EB44568EE3A7924F18C24C6B903AB4C80073",
+        "purpose": "Adapt the published ConsoleUtils 1.1 binary's August 2025 MSVC vtable layout and initialize its game-thread guard without double-hooking UE4SS's EngineTick detour or changing the utility DLL.",
+        "expectedChangedPaths": [
+          "UE4SS/src/Mod/CppMod.cpp",
+          "deps/first/SinglePassSigScanner/include/SigScanner/SinglePassSigScanner.hpp",
+          "deps/first/SinglePassSigScanner/src/SinglePassSigScanner.cpp"
+        ]
       }
     ]
   },
   "unbseMod": {
     "name": "UNBSE",
-    "version": "0.12.0",
+    "version": "0.13.0-rc.1",
     "target": "UNBSEMod",
     "buildConfiguration": "Game__Shipping__Win64",
     "packageDll": "ue4ss/Mods/UNBSE/dlls/main.dll",
@@ -195,7 +205,7 @@
       },
       {
         "relativePath": "ue4ss/loader/src/main.cpp",
-        "sha256": "65AC30264D42C88AC5D947752962698CF49DDD24168862F6EC49424A8B2A648F"
+        "sha256": "569C498415A000293F6D746F554004C24EA677CEE3FCA769E2F761FA0F061C70"
       },
       {
         "relativePath": "ue4ss/loader/src/UNBSEAssetPreflight.cpp",
@@ -235,7 +245,7 @@
       },
       {
         "relativePath": "ue4ss/mod/UNBSE/src/CoreLuaBinding.cpp",
-        "sha256": "21F52F2F06E019576948011EB6CA41F88DC8D9ED6D2FB8CF2F457A821D4A214B"
+        "sha256": "704788F3869C83FB5590F7032A228C6846466AEBBDBB6C2FBAF737C46B104F8D"
       },
       {
         "relativePath": "ue4ss/mod/UNBSE/src/ScriptServiceRegistry.cpp",
@@ -243,11 +253,11 @@
       },
       {
         "relativePath": "ue4ss/mod/UNBSE/src/UNBSECoreMod.cpp",
-        "sha256": "A1488F07EFD0F33E46F9BC2138E679FBFF8EBD3976736B6D6FDD3D321228408B"
+        "sha256": "43C689704623D8F732D11EC46250B18529B118695263B18B29E1780E12C8086E"
       },
       {
         "relativePath": "ue4ss/scripts/Build-UNBSEUE4SSMod.ps1",
-        "sha256": "32791CDEBEF4D0FB1795A08F0CB400DE8421A469796C13FAEF6D354042ADB6B1"
+        "sha256": "BE36A4DBE33980FFE4C3BEF4414E2C0EC4442034F6F2CED43417A3E6C4EF0529"
       },
       {
         "relativePath": "ue4ss/scripts/Install-UNBSEUE4SSMod.ps1",
@@ -255,11 +265,11 @@
       },
       {
         "relativePath": "ue4ss/scripts/Package-UNBSERelease.ps1",
-        "sha256": "046F1B92ACCD5CA48430CEF599940BDB539940386C52A6A44AE71221C8012D21"
+        "sha256": "9F60F3438A14C1D96A6317D5E9F77C7D82194DA7BF800483B8686C095A44263F"
       },
       {
         "relativePath": "ue4ss/scripts/Set-UNBSECoreManifestBoundary.ps1",
-        "sha256": "B534EDFAB50D35F900CA93AC0EF94129EA68C6EDB030E0908A6043AC3F2331C6"
+        "sha256": "0523762679A339DA5CE89C3E1EACE4F2BDF2192C9A5F56094194C5F50AAC6C58"
       },
       {
         "relativePath": "ue4ss/scripts/UNBSEUE4SSFoundation.psm1",
