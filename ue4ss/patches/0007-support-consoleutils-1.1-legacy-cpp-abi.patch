@@ -1,0 +1,291 @@
+diff --git a/UE4SS/src/Mod/CppMod.cpp b/UE4SS/src/Mod/CppMod.cpp
+index 91e57db9..4025bcdd 100644
+--- a/UE4SS/src/Mod/CppMod.cpp
++++ b/UE4SS/src/Mod/CppMod.cpp
+@@ -1,15 +1,80 @@
+ #define NOMINMAX
+
++#include <atomic>
++#include <cstdint>
+ #include <filesystem>
++#include <mutex>
+ #include <Windows.h>
+
+ #include <DynamicOutput/DynamicOutput.hpp>
+ #include <Helpers/SysError.hpp>
+ #include <Helpers/String.hpp>
+ #include <Mod/CppMod.hpp>
++#include <SigScanner/SinglePassSigScanner.hpp>
++#include <Unreal/Hooks/Hooks.hpp>
+
+ namespace RC
+ {
++    namespace
++    {
++        constexpr size_t legacy_on_lua_start_with_mod_name_vtable_index = 6;
++        std::atomic_bool console_utils_game_thread_probe_pending{};
++        std::once_flag console_utils_game_thread_probe_registration;
++
++        __declspec(noinline) auto console_utils_game_thread_probe(uint64_t first, uint64_t second, uint64_t third) -> uint64_t
++        {
++            volatile uint64_t values[]{first, second, third, 0};
++            values[3] = values[0] + values[1] + values[2];
++            return values[3];
++        }
++
++        auto uses_legacy_cpp_mod_abi(StringViewType mod_name, const CppUserModBase* mod) -> bool
++        {
++            // ConsoleUtils 1.1 was built against the August 2025 C++ mod ABI.
++            // Later overloads changed MSVC's vtable grouping, shifting callbacks
++            // that followed the Lua callback overloads.
++            return mod && mod_name == STR("ConsoleUtils") && mod->ModVersion == STR("1.1");
++        }
++
++        auto fire_legacy_on_lua_start_with_mod_name(CppUserModBase* mod,
++                                                    StringViewType mod_name,
++                                                    LuaMadeSimple::Lua& lua,
++                                                    LuaMadeSimple::Lua& main_lua,
++                                                    LuaMadeSimple::Lua& async_lua,
++                                                    std::vector<LuaMadeSimple::Lua*>& hook_luas) -> void
++        {
++            using Callback = void (*)(CppUserModBase*,
++                                      StringViewType,
++                                      LuaMadeSimple::Lua&,
++                                      LuaMadeSimple::Lua&,
++                                      LuaMadeSimple::Lua&,
++                                      std::vector<LuaMadeSimple::Lua*>&);
++
++            auto vtable = *reinterpret_cast<void***>(mod);
++            auto callback = reinterpret_cast<Callback>(vtable[legacy_on_lua_start_with_mod_name_vtable_index]);
++            callback(mod, mod_name, lua, main_lua, async_lua, hook_luas);
++        }
++
++        auto arm_console_utils_game_thread_probe() -> void
++        {
++            console_utils_game_thread_probe_pending.store(true, std::memory_order_release);
++            std::call_once(console_utils_game_thread_probe_registration, [] {
++                Unreal::Hook::RegisterEngineTickPreCallback(
++                        []([[maybe_unused]] auto& callback_iteration_data,
++                           [[maybe_unused]] auto* context,
++                           [[maybe_unused]] float delta_seconds,
++                           [[maybe_unused]] bool idle) {
++                            if (console_utils_game_thread_probe_pending.exchange(false, std::memory_order_acq_rel))
++                            {
++                                console_utils_game_thread_probe(0, 0, 0);
++                                Output::send(STR("[UE4SS.ConsoleUtilsCompat] event=game-thread-probe phase=complete\n"));
++                            }
++                        },
++                        {false, false, STR("UNBSE"), STR("ConsoleUtilsCompat")});
++            });
++        }
++    }
++
+     CppMod::CppMod(UE4SSProgram& program, StringType&& mod_name, StringType&& mod_path) : Mod(program, std::move(mod_name), std::move(mod_path))
+     {
+         m_dlls_path = m_mod_path / STR("dlls");
+@@ -109,6 +174,20 @@ namespace RC
+     {
+         if (m_mod)
+         {
++            if (uses_legacy_cpp_mod_abi(m_mod_name, m_mod))
++            {
++                std::vector<LuaMadeSimple::Lua*> hook_luas;
++                if (hook_lua)
++                {
++                    hook_luas.push_back(hook_lua);
++                }
++                fire_legacy_on_lua_start_with_mod_name(m_mod, mod_name, lua, main_lua, async_lua, hook_luas);
++                Output::send(STR("[UE4SS.CppModLifecycle] event=on_lua_start phase=legacy-dispatch mod='{}' vtable-slot={}\n"),
++                             m_mod_name,
++                             legacy_on_lua_start_with_mod_name_vtable_index);
++                return;
++            }
++
+             // Call new API
+             m_mod->on_lua_start(mod_name, lua, main_lua, async_lua, hook_lua);
+
+@@ -129,6 +208,11 @@ namespace RC
+     {
+         if (m_mod)
+         {
++            if (uses_legacy_cpp_mod_abi(m_mod_name, m_mod))
++            {
++                return;
++            }
++
+             // Call new API
+             m_mod->on_lua_start(lua, main_lua, async_lua, hook_lua);
+
+@@ -150,6 +234,11 @@ namespace RC
+     {
+         if (m_mod)
+         {
++            if (uses_legacy_cpp_mod_abi(m_mod_name, m_mod))
++            {
++                return;
++            }
++
+             // Call new API
+             m_mod->on_lua_stop(mod_name, lua, main_lua, async_lua, hook_lua);
+
+@@ -167,6 +256,11 @@ namespace RC
+     {
+         if (m_mod)
+         {
++            if (uses_legacy_cpp_mod_abi(m_mod_name, m_mod))
++            {
++                return;
++            }
++
+             // Call new API
+             m_mod->on_lua_stop(lua, main_lua, async_lua, hook_lua);
+
+@@ -184,7 +278,27 @@ namespace RC
+     {
+         if (m_mod)
+         {
+-            m_mod->on_unreal_init();
++            if (uses_legacy_cpp_mod_abi(m_mod_name, m_mod))
++            {
++                Output::send(STR("[UE4SS.ConsoleUtilsCompat] event=engine-tick-scan phase=probe-armed mod='ConsoleUtils'\n"));
++                SinglePassScanner::set_legacy_engine_tick_compatibility_target(
++                        reinterpret_cast<uint8_t*>(&console_utils_game_thread_probe));
++                try
++                {
++                    m_mod->on_unreal_init();
++                }
++                catch (...)
++                {
++                    SinglePassScanner::set_legacy_engine_tick_compatibility_target(nullptr);
++                    throw;
++                }
++                SinglePassScanner::set_legacy_engine_tick_compatibility_target(nullptr);
++                arm_console_utils_game_thread_probe();
++            }
++            else
++            {
++                m_mod->on_unreal_init();
++            }
+         }
+     }
+
+@@ -216,6 +330,10 @@ namespace RC
+     {
+         if (m_mod)
+         {
++            if (uses_legacy_cpp_mod_abi(m_mod_name, m_mod))
++            {
++                return;
++            }
+             m_mod->on_dll_load(dll_name);
+         }
+     }
+@@ -224,6 +342,12 @@ namespace RC
+     {
+         if (m_mod)
+         {
++            if (uses_legacy_cpp_mod_abi(m_mod_name, m_mod))
++            {
++                Output::send(STR("[UE4SS.CppModLifecycle] event=on_cpp_mods_loaded phase=skipped mod='{}' reason=legacy-cpp-mod-abi\n"),
++                             m_mod_name);
++                return;
++            }
+             Output::send(STR("[UE4SS.CppModLifecycle] event=on_cpp_mods_loaded phase=before mod='{}'\n"),
+                          m_mod_name);
+             m_mod->on_cpp_mods_loaded();
+diff --git a/deps/first/SinglePassSigScanner/include/SigScanner/SinglePassSigScanner.hpp b/deps/first/SinglePassSigScanner/include/SigScanner/SinglePassSigScanner.hpp
+index 7a8ef933..eff721a8 100644
+--- a/deps/first/SinglePassSigScanner/include/SigScanner/SinglePassSigScanner.hpp
++++ b/deps/first/SinglePassSigScanner/include/SigScanner/SinglePassSigScanner.hpp
+@@ -338,6 +338,8 @@ namespace RC
+         using SignatureContainerMap = std::unordered_map<ScanTarget, std::vector<SignatureContainer>>;
+         RC_SPSS_API auto static start_scan(SignatureContainerMap& signature_containers) -> void;
+
++        RC_SPSS_API auto static set_legacy_engine_tick_compatibility_target(uint8_t* target) -> void;
++
+         RC_SPSS_API auto static string_scan(std::wstring_view string_to_scan_for, ScanTarget = ScanTarget::MainExe) -> void*;
+     };
+ } // namespace RC
+diff --git a/deps/first/SinglePassSigScanner/src/SinglePassSigScanner.cpp b/deps/first/SinglePassSigScanner/src/SinglePassSigScanner.cpp
+index f94c2ed7..da6636a1 100644
+--- a/deps/first/SinglePassSigScanner/src/SinglePassSigScanner.cpp
++++ b/deps/first/SinglePassSigScanner/src/SinglePassSigScanner.cpp
+@@ -12,6 +12,11 @@
+
+ namespace RC
+ {
++    namespace
++    {
++        thread_local uint8_t* legacy_engine_tick_compatibility_target{};
++    }
++
+     ScanTargetArray SigScannerStaticData::m_modules_info;
+     bool SigScannerStaticData::m_is_modular;
+
+@@ -826,6 +831,36 @@ namespace RC
+
+     auto SinglePassScanner::start_scan(SignatureContainerMap& signature_containers) -> void
+     {
++        auto apply_legacy_engine_tick_compatibility = [](ScanTarget scan_target, std::vector<SignatureContainer>& containers) {
++            static constexpr std::string_view legacy_engine_tick_signature{
++                    "44 88 44 24 18 53 57 41 54 41 56 48 81 ec ?? ?? ?? ??"};
++
++            if (!legacy_engine_tick_compatibility_target || scan_target != ScanTarget::MainExe)
++            {
++                return;
++            }
++
++            for (auto& container : containers)
++            {
++                if (container.match_address || container.signatures.size() != 1 ||
++                    container.signatures[0].signature != legacy_engine_tick_signature)
++                {
++                    continue;
++                }
++
++                container.index_into_signatures = 0;
++                container.match_address = legacy_engine_tick_compatibility_target;
++                container.match_signature_size = 18;
++                container.ignore = container.on_match_found(container);
++
++                if (container.store_results)
++                {
++                    container.result_store.emplace_back(
++                            SignatureContainerLight{.index_into_signatures = 0, .match_address = legacy_engine_tick_compatibility_target});
++                }
++            }
++        };
++
+         SYSTEM_INFO info{};
+         GetSystemInfo(&info);
+
+@@ -896,6 +931,8 @@ namespace RC
+                 scanner_work_thread(module_start_address, module_end_address, info, merged_containers);
+             }
+
++            apply_legacy_engine_tick_compatibility(ScanTarget::MainExe, merged_containers);
++
+             for (auto& container : merged_containers)
+             {
+                 container.on_scan_finished(container);
+@@ -918,6 +955,8 @@ namespace RC
+
+                 scanner_work_thread(module_start_address, module_end_address, info, signature_container);
+
++                apply_legacy_engine_tick_compatibility(scan_target, signature_container);
++
+                 for (auto& container : signature_container)
+                 {
+                     container.on_scan_finished(container);
+@@ -925,4 +964,9 @@ namespace RC
+             }
+         }
+     }
+-} // namespace RC
+\ No newline at end of file
++
++    auto SinglePassScanner::set_legacy_engine_tick_compatibility_target(uint8_t* target) -> void
++    {
++        legacy_engine_tick_compatibility_target = target;
++    }
++} // namespace RC

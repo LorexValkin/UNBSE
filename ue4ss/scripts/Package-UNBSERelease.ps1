@@ -106,7 +106,7 @@ $foundationArchive = Assert-UNBSENoReparsePath $FoundationArchivePath
 $corePackage = Assert-UNBSENoReparsePath $CorePackageRoot
 $manifest = Get-Content -LiteralPath $manifestFile -Raw | ConvertFrom-Json
 $version = [string]$manifest.unbseMod.version
-if ($version -cne '0.12.0') {
+if ($version -cne '0.13.0-rc.1') {
     throw "Unexpected release version: $version"
 }
 if ((Get-Item -LiteralPath $foundationArchive).Length -ne
@@ -153,9 +153,18 @@ try {
     $manifest.requiredSettings.psobject.Properties | ForEach-Object {
         $requiredSettings[$_.Name] = [string]$_.Value
     }
+    $settingsPath = Join-Path $runtimeStage 'ue4ss\UE4SS-settings.ini'
     Set-UNBSERequiredIni `
-        -Path (Join-Path $runtimeStage 'ue4ss\UE4SS-settings.ini') `
+        -Path $settingsPath `
         -RequiredSettings $requiredSettings
+    $settingsProfileMarker = '; UNBSE-Settings-Profile: 0.13.0-rc.1'
+    $settingsLines = [IO.File]::ReadAllLines($settingsPath)
+    if ($settingsLines -cnotcontains $settingsProfileMarker) {
+        [IO.File]::WriteAllLines(
+            $settingsPath,
+            @($settingsProfileMarker) + $settingsLines,
+            [Text.UTF8Encoding]::new($false))
+    }
     foreach ($artifact in $manifest.requiredRuntimeArtifacts) {
         $packageRelative = if ($artifact.PSObject.Properties.Name -contains
             'packageRelativePath') {
@@ -205,6 +214,7 @@ try {
             ForEach-Object { [string]$_.relativePath }) +
         @($manifest.patchSet.patches | ForEach-Object { [string]$_.relativePath }) +
         @('.gitattributes', 'README.md', 'docs/release-notes-0.12.0.md',
+            'docs/release-notes-0.13.0-rc.1.md',
             'ue4ss/foundation-manifest.json')
     ) | Sort-Object -Unique
     foreach ($relativePath in $sourcePaths) {

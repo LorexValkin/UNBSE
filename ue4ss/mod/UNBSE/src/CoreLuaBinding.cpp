@@ -204,7 +204,7 @@ namespace RC::UNBSE
             const auto Written = std::snprintf(
                     Result->value.utf8Value, sizeof(Result->value.utf8Value),
                     "{\"schema\":\"UNBSE.RuntimeDescription\",\"schemaVersion\":1,"
-                    "\"version\":\"0.12.0\",\"role\":\"runtime-capability-injector\","
+                    "\"version\":\"0.13.0-rc.1\",\"role\":\"runtime-capability-injector\","
                     "\"compatibilityPolicy\":\"report-and-attempt\",\"sequence\":%llu,"
                     "\"windowsThreadId\":%u,\"bundledProbes\":false,\"bundledMcp\":false,"
                     "\"bundledGameFeatureAddons\":false,\"baseObse64Interop\":true}",

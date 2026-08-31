@@ -6,6 +6,10 @@ param(
     [string]$InteropBuildRoot = (Join-Path $PSScriptRoot '..\..\out\ue4ss-build-obse64interop'),
     [string]$LoaderBuildRoot = (Join-Path $PSScriptRoot '..\..\out\unbse-loader-build'),
     [string]$PackageRoot = (Join-Path $PSScriptRoot '..\..\out\ue4ss-package'),
+    [string]$SignToolPath,
+    [string]$ArtifactSigningDlibPath,
+    [string]$ArtifactSigningMetadataPath,
+    [string]$TimestampUrl = 'http://timestamp.acs.microsoft.com',
     [ValidateRange(1, 64)][int]$Parallel = 8
 )
 
@@ -61,6 +65,40 @@ function Invoke-UNBSENative {
     }
 }
 
+function Invoke-UNBSEArtifactSigning {
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][string]$DisplayName
+    )
+
+    if (-not $artifactSigningEnabled) { return }
+
+    $signature = Get-AuthenticodeSignature -LiteralPath $Path
+    if ([string]$signature.Status -ceq 'Valid' -and
+        $null -ne $signature.TimeStamperCertificate) {
+        Write-Verbose "$DisplayName already has a valid timestamped Authenticode signature."
+        return
+    }
+    if ([string]$signature.Status -cne 'NotSigned') {
+        throw "$DisplayName has an unusable existing Authenticode signature: $($signature.Status)"
+    }
+
+    Invoke-UNBSENative $resolvedSignTool @(
+        'sign', '/v', '/fd', 'SHA256',
+        '/tr', $TimestampUrl, '/td', 'SHA256',
+        '/dlib', $resolvedArtifactSigningDlib,
+        '/dmdf', $resolvedArtifactSigningMetadata,
+        $Path
+    )
+    Invoke-UNBSENative $resolvedSignTool @('verify', '/pa', '/all', '/v', $Path)
+
+    $signature = Get-AuthenticodeSignature -LiteralPath $Path
+    if ([string]$signature.Status -cne 'Valid' -or
+        $null -eq $signature.TimeStamperCertificate) {
+        throw "$DisplayName did not receive a valid timestamped Authenticode signature."
+    }
+}
+
 function Get-UNBSEGitFilteredBytes {
     param(
         [Parameter(Mandatory)][string]$Repository,
@@ -108,6 +146,25 @@ $build = Assert-UNBSENoReparsePath $BuildRoot -AllowMissingLeaf
 $interopBuild = Assert-UNBSENoReparsePath $InteropBuildRoot -AllowMissingLeaf
 $loaderBuild = Assert-UNBSENoReparsePath $LoaderBuildRoot -AllowMissingLeaf
 $package = Assert-UNBSENoReparsePath $PackageRoot -AllowMissingLeaf
+$signingInputs = @($SignToolPath, $ArtifactSigningDlibPath, $ArtifactSigningMetadataPath)
+$specifiedSigningInputs = @($signingInputs | Where-Object {
+        -not [string]::IsNullOrWhiteSpace($_)
+    })
+$artifactSigningEnabled = $specifiedSigningInputs.Count -gt 0
+if ($artifactSigningEnabled -and $specifiedSigningInputs.Count -ne $signingInputs.Count) {
+    throw 'SignToolPath, ArtifactSigningDlibPath, and ArtifactSigningMetadataPath must be supplied together.'
+}
+if ($artifactSigningEnabled) {
+    $resolvedSignTool = Assert-UNBSENoReparsePath (
+        Get-UNBSEBuildCanonicalPath $SignToolPath -MustExist)
+    $resolvedArtifactSigningDlib = Assert-UNBSENoReparsePath (
+        Get-UNBSEBuildCanonicalPath $ArtifactSigningDlibPath -MustExist)
+    $resolvedArtifactSigningMetadata = Assert-UNBSENoReparsePath (
+        Get-UNBSEBuildCanonicalPath $ArtifactSigningMetadataPath -MustExist)
+    if (-not [Uri]::IsWellFormedUriString($TimestampUrl, [UriKind]::Absolute)) {
+        throw "TimestampUrl is not an absolute URI: $TimestampUrl"
+    }
+}
 $modSource = Assert-UNBSENoReparsePath (Join-Path $PSScriptRoot '..\mod\UNBSE')
 $interop = $manifest.unbseMod.obse64Interop
 $loader = $manifest.unbseMod.loader
@@ -286,6 +343,7 @@ try {
     )
     $hostArtifact = Assert-UNBSENoReparsePath (Get-UNBSEBuildCanonicalPath (
         Join-Path $build "$($manifest.unbseMod.buildConfiguration)\bin\UE4SS.dll") -MustExist)
+    Invoke-UNBSEArtifactSigning -Path $hostArtifact -DisplayName 'Patched UE4SS host'
     $hostHash = Get-UNBSEHash $hostArtifact
     $hostBytes = [long](Get-Item -LiteralPath $hostArtifact).Length
     $hostImage = [IO.File]::ReadAllBytes($hostArtifact)
@@ -326,16 +384,19 @@ finally {
 
 $artifact = Join-Path $build "$($manifest.unbseMod.buildConfiguration)\bin\main.dll"
 $artifact = Assert-UNBSENoReparsePath (Get-UNBSEBuildCanonicalPath $artifact -MustExist)
+Invoke-UNBSEArtifactSigning -Path $artifact -DisplayName 'UNBSE core module'
 $dllHash = Get-UNBSEHash $artifact
 $dllBytes = (Get-Item -LiteralPath $artifact).Length
 $interopArtifact = Join-Path $interopBuild "$($interop.buildConfiguration)\bin\main.dll"
 $interopArtifact = Assert-UNBSENoReparsePath `
     (Get-UNBSEBuildCanonicalPath $interopArtifact -MustExist)
+Invoke-UNBSEArtifactSigning -Path $interopArtifact -DisplayName 'UNBSE OBSE64 interoperability module'
 $interopDllHash = Get-UNBSEHash $interopArtifact
 $interopDllBytes = (Get-Item -LiteralPath $interopArtifact).Length
 $loaderArtifact = Join-Path $loaderBuild "$($loader.buildConfiguration)\$($loader.packageExecutable)"
 $loaderArtifact = Assert-UNBSENoReparsePath `
     (Get-UNBSEBuildCanonicalPath $loaderArtifact -MustExist)
+Invoke-UNBSEArtifactSigning -Path $loaderArtifact -DisplayName 'UNBSE launcher'
 $loaderHash = Get-UNBSEHash $loaderArtifact
 $loaderBytes = (Get-Item -LiteralPath $loaderArtifact).Length
 $hostPackageDll = Join-Path $package 'ue4ss\UE4SS.dll'
@@ -534,5 +595,6 @@ $packageManifestPath = Join-Path $package 'unbse-mod-manifest.json'
     LoaderBytes = $loaderBytes
     PatchedHostSha256 = $hostHash
     PatchedHostBytes = $hostBytes
+    AuthenticodeSigned = $artifactSigningEnabled
     PackageManifest = $packageManifestPath
 } | ConvertTo-Json -Compress

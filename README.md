@@ -18,7 +18,7 @@ request only the runtime services they need.
 The documentation is kept with the source and is published as a static website
 from `main`, so the guide and machine-readable API describe the shipped SDK.
 
-The `0.12.0` release targets only the current Steam executable,
+The `0.13.0-rc.1` release candidate targets only the current Steam executable,
 `OblivionRemastered-Win64-Shipping.exe` version `1.512.105.0`. UNBSE includes its
 clean-room OBSE64 interoperability module and discovers compatible native plugins
 from `OBSE/Plugins`. Compatibility is determined plugin by plugin; support for
@@ -32,7 +32,7 @@ limits.
 
 ## Install
 
-UNBSE `0.12.0` targets only the Steam executable version `1.512.105.0`.
+UNBSE `0.13.0-rc.1` targets only the Steam executable version `1.512.105.0`.
 The packaged UE4SS console is intentionally visible so its startup log, loaded
 mods, and UNBSE compatibility messages are immediately observable. The same log
 is retained in `ue4ss/UE4SS.log`.
@@ -43,10 +43,21 @@ game's `Win64` directory. Keep the existing `OBSE/Plugins` directory.
 
 ### One archive: manual, Vortex, or MO2
 
-Use the single `UNBSE-0.12.0.zip` archive. For a manual install, extract it
+Use the single `UNBSE-0.13.0-rc.1.zip` archive. For a manual install, extract it
 directly into `Oblivion Remastered/OblivionRemastered/Binaries/Win64`. Launch
 `UNBSELoader.exe` when you want the prelaunch plugin-version check; the normal
-Steam launch remains available. For Vortex, install and enable the same zip,
+Steam launch remains available after the settings preflight. On first launch
+after an upgrade, the loader checks the active `UE4SS-settings.ini` for every
+UNBSE-required key. If an older file is missing keys or contains incompatible
+values, it lists the differences and offers to repair only those keys. An
+existing file receives a uniquely named `.unbse-backup` before replacement;
+unrelated settings and comments are preserved. After a repair, the loader exits
+without starting the game and asks you to launch it again from Vortex, MO2, or
+your normal launcher. `--validate-only` reports the same differences without
+changing the file. The packaged and repaired INI also contains the comment
+marker `UNBSE-Settings-Profile: 0.13.0-rc.1` for identification.
+
+For Vortex, install and enable the same zip,
 remove the separate Nexus UE4SS package (mod 32) if present, disable Vortex's
 automatically installed legacy OBSE64 requirement, add `UNBSELoader.exe` as a
 tool, and make that tool primary.
@@ -59,7 +70,7 @@ state. This is the only install archive published for the release.
 
 ### Mod Organizer 2
 
-1. Install the same `UNBSE-0.12.0.zip` as one MO2 mod, accept the Oblivion
+1. Install the same `UNBSE-0.13.0-rc.1.zip` as one MO2 mod, accept the Oblivion
    Remastered plugin's automatic file-tree fix, and enable it. The plugin moves
    the complete self-contained payload under `Root`; do not use Root Builder,
    rename `dwmapi.dll`, or configure a force-loaded library.
@@ -191,10 +202,25 @@ environment:
     -FoundationArchivePath .\out\foundation\UE4SS_v3.0.1-1008-g68dd45cb.zip
 ```
 
+For a public signed build, pass a compatible Windows SDK `signtool.exe`, the
+Microsoft Artifact Signing client dlib, and a metadata file naming the signing
+account and certificate profile:
+
+```powershell
+& .\ue4ss\scripts\Build-UNBSEUE4SSMod.ps1 `
+    -SignToolPath '<Windows SDK>\x64\signtool.exe' `
+    -ArtifactSigningDlibPath '<Artifact Signing client>\bin\x64\Azure.CodeSigning.Dlib.dll' `
+    -ArtifactSigningMetadataPath '<private build inputs>\metadata.json'
+```
+
 The first command rebuilds the patched UE4SS host, core, interoperability DLL,
 and native launcher. The package manifest pins that exact host and the launcher
 will reject a substituted host, ensuring the shipped runtime contains the
 `UE4SS.CppModLifecycle` diagnostic boundary.
+When signing inputs are supplied, those four UNBSE-produced or patched binaries
+receive verified, timestamped Authenticode signatures before their final hashes
+are recorded. The unchanged upstream `dwmapi.dll` proxy retains its upstream
+signature state.
 The second creates one universal install archive, one production-source archive,
 and `SHA256SUMS.txt`. UNBSE does not currently declare its own license; the
 bundled UE4SS license remains included with its runtime.

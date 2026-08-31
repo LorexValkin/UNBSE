@@ -47,11 +47,37 @@ namespace
     constexpr std::wstring_view ExpectedUE4SSSha256 =
             UNBSE_WIDEN_LITERAL(UNBSE_EXPECTED_UE4SS_SHA256);
     constexpr std::uintmax_t ExpectedUE4SSBytes = UNBSE_EXPECTED_UE4SS_BYTES;
-    constexpr std::wstring_view ExpectedSettingsSha256 =
-            L"BADAE1123D871A62A6735D1BACC95FF28E6ED12CFD8FE6BEA4DE0055726CBCE9";
-    constexpr std::uintmax_t ExpectedSettingsBytes = 7848;
     constexpr std::wstring_view ExpectedProxySha256 =
             L"02822565CF0E4CC607BADB6F17F3F6C4D37A4B6ED05849D98CD18C6C685183B5";
+    constexpr std::string_view SettingsProfileMarker =
+            "; UNBSE-Settings-Profile: 0.13.0-rc.1";
+
+    struct FRequiredIniSetting
+    {
+        std::string_view Section{};
+        std::string_view Key{};
+        std::string_view Value{};
+    };
+
+    constexpr std::array RequiredIniSettings{
+            FRequiredIniSetting{"General", "EnableHotReloadSystem", "0"},
+            FRequiredIniSetting{"General", "UseCache", "1"},
+            FRequiredIniSetting{"General", "InvalidateCacheIfDLLDiffers", "1"},
+            FRequiredIniSetting{"General", "bUseUObjectArrayCache", "false"},
+            FRequiredIniSetting{
+                    "General", "DefaultExecuteInGameThreadMethod", "EngineTick"},
+            FRequiredIniSetting{"Debug", "ConsoleEnabled", "1"},
+            FRequiredIniSetting{
+                    "ObjectDumper", "LoadAllAssetsBeforeDumpingObjects", "0"},
+            FRequiredIniSetting{
+                    "CXXHeaderGenerator", "LoadAllAssetsBeforeGeneratingCXXHeaders", "0"},
+            FRequiredIniSetting{"Hooks", "HookEngineTick", "1"},
+            FRequiredIniSetting{"Hooks", "EngineTickResolveMethod", "Scan"},
+            FRequiredIniSetting{"Hooks", "HookGameViewportClientTick", "1"},
+            FRequiredIniSetting{"Hooks", "HookUObjectProcessEvent", "1"},
+            FRequiredIniSetting{"Hooks", "HookProcessInternal", "1"},
+            FRequiredIniSetting{"Hooks", "HookProcessLocalScriptFunction", "1"},
+            FRequiredIniSetting{"Hooks", "HookLoadMap", "1"}};
 
     class FHandle
     {
@@ -476,6 +502,499 @@ namespace
         MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, Value.data(),
                             static_cast<int>(Value.size()), Result.data(), Required);
         return Result;
+    }
+
+    struct FIniDocument
+    {
+        std::vector<std::string> Lines{};
+        std::string Newline{"\r\n"};
+        bool Missing{};
+        bool HasUtf8Bom{};
+        bool EndsWithNewline{};
+    };
+
+    struct FSettingsReview
+    {
+        FIniDocument Document{};
+        std::vector<std::string> Issues{};
+        std::wstring Error{};
+    };
+
+    struct FParsedIniSetting
+    {
+        std::string_view Key{};
+        std::string_view Value{};
+    };
+
+    struct FSettingsRepairResult
+    {
+        bool Success{};
+        std::optional<fs::path> Backup{};
+        std::wstring Error{};
+    };
+
+    auto TrimIniToken(std::string_view Value) -> std::string_view
+    {
+        constexpr std::string_view Whitespace{" \t\r\n"};
+        const auto First = Value.find_first_not_of(Whitespace);
+        if (First == std::string_view::npos)
+        {
+            return {};
+        }
+        const auto Last = Value.find_last_not_of(Whitespace);
+        return Value.substr(First, Last - First + 1);
+    }
+
+    auto ParseIniSection(const std::string_view Line)
+            -> std::optional<std::string_view>
+    {
+        const auto Trimmed = TrimIniToken(Line);
+        if (Trimmed.size() < 3 || Trimmed.front() != '[' || Trimmed.back() != ']')
+        {
+            return std::nullopt;
+        }
+        return TrimIniToken(Trimmed.substr(1, Trimmed.size() - 2));
+    }
+
+    auto ParseIniSetting(const std::string_view Line)
+            -> std::optional<FParsedIniSetting>
+    {
+        const auto Trimmed = TrimIniToken(Line);
+        if (Trimmed.empty() || Trimmed.front() == ';' || Trimmed.front() == '#')
+        {
+            return std::nullopt;
+        }
+        const auto Equals = Trimmed.find('=');
+        if (Equals == std::string_view::npos)
+        {
+            return std::nullopt;
+        }
+        const auto Key = TrimIniToken(Trimmed.substr(0, Equals));
+        if (Key.empty() || Key.front() == ';' || Key.front() == '#')
+        {
+            return std::nullopt;
+        }
+        return FParsedIniSetting{
+                Key, TrimIniToken(Trimmed.substr(Equals + 1))};
+    }
+
+    auto ReadIniDocument(const fs::path& Path) -> FSettingsReview
+    {
+        FSettingsReview Result{};
+        const auto Attributes = GetFileAttributesW(Path.c_str());
+        if (Attributes == INVALID_FILE_ATTRIBUTES)
+        {
+            const auto Error = GetLastError();
+            if (Error == ERROR_FILE_NOT_FOUND || Error == ERROR_PATH_NOT_FOUND)
+            {
+                Result.Document.Missing = true;
+                Result.Issues.emplace_back("UE4SS-settings.ini is missing");
+                return Result;
+            }
+            Result.Error = L"Unable to inspect UE4SS-settings.ini (Windows error " +
+                           std::to_wstring(Error) + L")";
+            return Result;
+        }
+        if ((Attributes & FILE_ATTRIBUTE_DIRECTORY) != 0)
+        {
+            Result.Error = L"UE4SS-settings.ini is a directory";
+            return Result;
+        }
+        if ((Attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0)
+        {
+            Result.Error = L"Refusing to read or update a reparse-point "
+                           L"UE4SS-settings.ini";
+            return Result;
+        }
+
+        std::ifstream Stream{Path, std::ios::binary};
+        if (!Stream)
+        {
+            Result.Error = L"Unable to open UE4SS-settings.ini for reading";
+            return Result;
+        }
+        const std::string Content{
+                std::istreambuf_iterator<char>{Stream}, std::istreambuf_iterator<char>{}};
+        if (Stream.bad())
+        {
+            Result.Error = L"Unable to read UE4SS-settings.ini";
+            return Result;
+        }
+        if (Content.size() >= 2 &&
+            ((static_cast<unsigned char>(Content[0]) == 0xFF &&
+              static_cast<unsigned char>(Content[1]) == 0xFE) ||
+             (static_cast<unsigned char>(Content[0]) == 0xFE &&
+              static_cast<unsigned char>(Content[1]) == 0xFF)))
+        {
+            Result.Error = L"UE4SS-settings.ini uses UTF-16; convert it to UTF-8 before "
+                           L"UNBSE can update it";
+            return Result;
+        }
+
+        std::size_t Cursor{};
+        if (Content.size() >= 3 &&
+            static_cast<unsigned char>(Content[0]) == 0xEF &&
+            static_cast<unsigned char>(Content[1]) == 0xBB &&
+            static_cast<unsigned char>(Content[2]) == 0xBF)
+        {
+            Result.Document.HasUtf8Bom = true;
+            Cursor = 3;
+        }
+        const auto FirstNewline = Content.find('\n', Cursor);
+        if (FirstNewline != std::string::npos && FirstNewline > Cursor &&
+            Content[FirstNewline - 1] != '\r')
+        {
+            Result.Document.Newline = "\n";
+        }
+        Result.Document.EndsWithNewline =
+                Content.size() > Cursor && Content.back() == '\n';
+        while (Cursor < Content.size())
+        {
+            const auto End = Content.find('\n', Cursor);
+            if (End == std::string::npos)
+            {
+                auto Line = Content.substr(Cursor);
+                if (!Line.empty() && Line.back() == '\r')
+                {
+                    Line.pop_back();
+                }
+                Result.Document.Lines.emplace_back(std::move(Line));
+                break;
+            }
+            auto Line = Content.substr(Cursor, End - Cursor);
+            if (!Line.empty() && Line.back() == '\r')
+            {
+                Line.pop_back();
+            }
+            Result.Document.Lines.emplace_back(std::move(Line));
+            Cursor = End + 1;
+        }
+
+        for (const auto& Required : RequiredIniSettings)
+        {
+            std::string_view CurrentSection{};
+            bool Found{};
+            std::optional<std::string> WrongValue{};
+            for (const auto& Line : Result.Document.Lines)
+            {
+                if (const auto Section = ParseIniSection(Line))
+                {
+                    CurrentSection = *Section;
+                    continue;
+                }
+                const auto Setting = ParseIniSetting(Line);
+                if (!Setting || CurrentSection != Required.Section ||
+                    Setting->Key != Required.Key)
+                {
+                    continue;
+                }
+                Found = true;
+                if (Setting->Value != Required.Value)
+                {
+                    WrongValue = std::string{Setting->Value};
+                }
+            }
+            if (!Found)
+            {
+                Result.Issues.emplace_back(
+                        "[" + std::string{Required.Section} + "] " +
+                        std::string{Required.Key} + " is missing (required " +
+                        std::string{Required.Value} + ")");
+            }
+            else if (WrongValue)
+            {
+                Result.Issues.emplace_back(
+                        "[" + std::string{Required.Section} + "] " +
+                        std::string{Required.Key} + " is '" + *WrongValue +
+                        "' (required '" + std::string{Required.Value} + "')");
+            }
+        }
+        return Result;
+    }
+
+    auto ApplyRequiredIniSetting(FIniDocument& Document,
+                                 const FRequiredIniSetting& Required) -> void
+    {
+        std::string CurrentSection{};
+        std::vector<std::size_t> Matches{};
+        std::optional<std::size_t> FirstSectionHeader{};
+        std::optional<std::size_t> FirstSectionEnd{};
+        bool InFirstSection{};
+        for (std::size_t Index = 0; Index < Document.Lines.size(); ++Index)
+        {
+            if (const auto Section = ParseIniSection(Document.Lines[Index]))
+            {
+                if (InFirstSection && !FirstSectionEnd)
+                {
+                    FirstSectionEnd = Index;
+                }
+                CurrentSection = std::string{*Section};
+                if (CurrentSection == Required.Section && !FirstSectionHeader)
+                {
+                    FirstSectionHeader = Index;
+                    InFirstSection = true;
+                }
+                else
+                {
+                    InFirstSection = false;
+                }
+                continue;
+            }
+            const auto Setting = ParseIniSetting(Document.Lines[Index]);
+            if (Setting && CurrentSection == Required.Section &&
+                Setting->Key == Required.Key)
+            {
+                Matches.emplace_back(Index);
+            }
+        }
+        if (InFirstSection && !FirstSectionEnd)
+        {
+            FirstSectionEnd = Document.Lines.size();
+        }
+
+        const auto Replacement = std::string{Required.Key} + " = " +
+                                 std::string{Required.Value};
+        if (!Matches.empty())
+        {
+            for (const auto Index : Matches)
+            {
+                Document.Lines[Index] = Replacement;
+            }
+            return;
+        }
+        if (FirstSectionHeader)
+        {
+            Document.Lines.insert(
+                    Document.Lines.begin() + static_cast<std::ptrdiff_t>(
+                                                     FirstSectionEnd.value_or(
+                                                             Document.Lines.size())),
+                    Replacement);
+            return;
+        }
+        if (!Document.Lines.empty() && !Document.Lines.back().empty())
+        {
+            Document.Lines.emplace_back();
+        }
+        Document.Lines.emplace_back("[" + std::string{Required.Section} + "]");
+        Document.Lines.emplace_back(Replacement);
+    }
+
+    auto SerializeIniDocument(FIniDocument Document) -> std::string
+    {
+        for (const auto& Required : RequiredIniSettings)
+        {
+            ApplyRequiredIniSetting(Document, Required);
+        }
+        constexpr std::string_view SettingsProfilePrefix =
+                "; UNBSE-Settings-Profile:";
+        bool HasSettingsProfile{};
+        for (auto Line = Document.Lines.begin(); Line != Document.Lines.end();)
+        {
+            if (!TrimIniToken(*Line).starts_with(SettingsProfilePrefix))
+            {
+                ++Line;
+                continue;
+            }
+            if (!HasSettingsProfile)
+            {
+                *Line = SettingsProfileMarker;
+                HasSettingsProfile = true;
+                ++Line;
+            }
+            else
+            {
+                Line = Document.Lines.erase(Line);
+            }
+        }
+        if (!HasSettingsProfile)
+        {
+            Document.Lines.insert(Document.Lines.begin(),
+                                  std::string{SettingsProfileMarker});
+        }
+        Document.EndsWithNewline = true;
+
+        std::string Result{};
+        if (Document.HasUtf8Bom)
+        {
+            Result.append("\xEF\xBB\xBF", 3);
+        }
+        for (std::size_t Index = 0; Index < Document.Lines.size(); ++Index)
+        {
+            Result.append(Document.Lines[Index]);
+            if (Index + 1 < Document.Lines.size() || Document.EndsWithNewline)
+            {
+                Result.append(Document.Newline);
+            }
+        }
+        return Result;
+    }
+
+    auto UniqueSiblingPath(const fs::path& Path, const std::wstring_view Suffix)
+            -> std::optional<fs::path>
+    {
+        for (std::size_t Index = 0; Index < 1000; ++Index)
+        {
+            auto Candidate = Path;
+            Candidate += Suffix;
+            if (Index != 0)
+            {
+                Candidate += L"-" + std::to_wstring(Index);
+            }
+            std::error_code Error{};
+            if (!fs::exists(Candidate, Error) && !Error)
+            {
+                return Candidate;
+            }
+        }
+        return std::nullopt;
+    }
+
+    auto RepairSettingsFile(const fs::path& Path, const FIniDocument& Document)
+            -> FSettingsRepairResult
+    {
+        FSettingsRepairResult Result{};
+        const auto Temporary = UniqueSiblingPath(Path, L".unbse-tmp");
+        if (!Temporary)
+        {
+            Result.Error = L"Unable to reserve a temporary settings path";
+            return Result;
+        }
+        const auto Bytes = SerializeIniDocument(Document);
+        {
+            std::ofstream Stream{*Temporary, std::ios::binary | std::ios::trunc};
+            if (!Stream)
+            {
+                Result.Error = L"Unable to create the temporary settings file";
+                return Result;
+            }
+            Stream.write(Bytes.data(), static_cast<std::streamsize>(Bytes.size()));
+            Stream.flush();
+            if (!Stream)
+            {
+                Stream.close();
+                std::error_code CleanupError{};
+                fs::remove(*Temporary, CleanupError);
+                Result.Error = L"Unable to write the temporary settings file";
+                return Result;
+            }
+        }
+
+        if (Document.Missing)
+        {
+            if (!MoveFileExW(Temporary->c_str(), Path.c_str(), MOVEFILE_WRITE_THROUGH))
+            {
+                const auto Error = GetLastError();
+                std::error_code CleanupError{};
+                fs::remove(*Temporary, CleanupError);
+                Result.Error = L"Unable to create UE4SS-settings.ini (Windows error " +
+                               std::to_wstring(Error) + L")";
+                return Result;
+            }
+        }
+        else
+        {
+            Result.Backup = UniqueSiblingPath(Path, L".unbse-backup");
+            if (!Result.Backup)
+            {
+                std::error_code CleanupError{};
+                fs::remove(*Temporary, CleanupError);
+                Result.Error = L"Unable to reserve a settings backup path";
+                return Result;
+            }
+            if (!ReplaceFileW(Path.c_str(), Temporary->c_str(),
+                              Result.Backup->c_str(), REPLACEFILE_WRITE_THROUGH,
+                              nullptr, nullptr))
+            {
+                const auto Error = GetLastError();
+                std::error_code CleanupError{};
+                fs::remove(*Temporary, CleanupError);
+                Result.Error = L"Unable to replace UE4SS-settings.ini (Windows error " +
+                               std::to_wstring(Error) + L")";
+                Result.Backup.reset();
+                return Result;
+            }
+        }
+        Result.Success = true;
+        return Result;
+    }
+
+    auto EnsureCompatibleSettings(const fs::path& Path, const bool ValidateOnly,
+                                  bool& Repaired) -> bool
+    {
+        Repaired = false;
+        const auto Review = ReadIniDocument(Path);
+        if (!Review.Error.empty())
+        {
+            std::wcerr << L"ERROR: " << Review.Error << L": " << Path << L"\n";
+            return false;
+        }
+        if (Review.Issues.empty())
+        {
+            return true;
+        }
+
+        std::wcerr << L"ERROR: UE4SS-settings.ini is not UNBSE 0.13.0-rc.1 compliant:\n";
+        for (const auto& Issue : Review.Issues)
+        {
+            std::wcerr << L"  - " << Utf8ToWide(Issue) << L"\n";
+        }
+        if (ValidateOnly)
+        {
+            std::wcerr << L"Run UNBSELoader.exe normally to review and approve a "
+                          L"settings repair. No files were changed.\n";
+            return false;
+        }
+
+        std::wostringstream Prompt{};
+        Prompt << L"UE4SS-settings.ini is not compatible with UNBSE 0.13.0-rc.1.\n\n";
+        constexpr std::size_t MaximumDisplayedIssues = 15;
+        const auto Displayed = std::min(Review.Issues.size(), MaximumDisplayedIssues);
+        for (std::size_t Index = 0; Index < Displayed; ++Index)
+        {
+            Prompt << L"- " << Utf8ToWide(Review.Issues[Index]) << L"\n";
+        }
+        if (Review.Issues.size() > Displayed)
+        {
+            Prompt << L"...and " << (Review.Issues.size() - Displayed)
+                   << L" more issue(s).\n";
+        }
+        Prompt << L"\nUpdate the INI now? Only UNBSE's required keys will be added or "
+                  L"corrected. Other settings and comments are preserved.";
+        if (!Review.Document.Missing)
+        {
+            Prompt << L" A uniquely named backup will be created first.";
+        }
+        if (MessageBoxW(nullptr, Prompt.str().c_str(),
+                        L"UNBSE - Update UE4SS Settings?",
+                        MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2 |
+                                MB_SETFOREGROUND) != IDYES)
+        {
+            std::wcerr << L"ERROR: Settings repair was declined; launch cancelled.\n";
+            return false;
+        }
+
+        const auto Repair = RepairSettingsFile(Path, Review.Document);
+        if (!Repair.Success)
+        {
+            std::wcerr << L"ERROR: " << Repair.Error << L"\n";
+            MessageBoxW(nullptr, Repair.Error.c_str(), L"UNBSE Settings Repair Failed",
+                        MB_OK | MB_ICONERROR | MB_SETFOREGROUND);
+            return false;
+        }
+        const auto Recheck = ReadIniDocument(Path);
+        if (!Recheck.Error.empty() || !Recheck.Issues.empty())
+        {
+            std::wcerr << L"ERROR: UE4SS-settings.ini remained incompatible after "
+                          L"the repair; launch cancelled.\n";
+            return false;
+        }
+        std::wcout << L"Updated UNBSE-required UE4SS settings: " << Path << L"\n";
+        if (Repair.Backup)
+        {
+            std::wcout << L"Settings backup: " << *Repair.Backup << L"\n";
+        }
+        Repaired = true;
+        return true;
     }
 
     auto FormatRuntimeVersion(const std::uint32_t Version) -> std::wstring
@@ -1001,6 +1520,13 @@ namespace
             std::wcerr << L"ERROR: Unable to identify the LoadLibraryW owner module.\n";
             return false;
         }
+        if (!WaitForRemoteModule(Process, ProcessId, OwnerName.data(),
+                                 std::chrono::seconds{10}))
+        {
+            std::wcerr << L"ERROR: Child process did not initialize " << OwnerName.data()
+                       << L" before the injection deadline.\n";
+            return false;
+        }
         const auto RemoteOwner = FindRemoteModule(ProcessId, OwnerName.data());
         if (!RemoteOwner)
         {
@@ -1060,9 +1586,22 @@ namespace
             return false;
         }
         DWORD Result{};
-        if (!GetExitCodeThread(Thread.get(), &Result) || Result == 0)
+        if (!GetExitCodeThread(Thread.get(), &Result))
         {
-            std::wcerr << L"ERROR: The game process rejected UE4SS.dll.\n";
+            std::wcerr << L"ERROR: GetExitCodeThread failed after loading UE4SS: "
+                       << FormatWindowsError(GetLastError()) << L"\n";
+            return false;
+        }
+        // A remote thread exit code is only a DWORD, while LoadLibraryW returns a
+        // 64-bit module handle. The truncated value can be zero for a successful
+        // x64 load, so verify the durable remote module state instead.
+        if (!WaitForRemoteModule(Process, ProcessId, Library.filename().wstring(),
+                                 std::chrono::seconds{10}))
+        {
+            std::wcerr << L"ERROR: The game process did not retain "
+                       << Library.filename().wstring()
+                       << L" after LoadLibraryW (truncated remote result " << Result
+                       << L").\n";
             return false;
         }
         return true;
@@ -1080,12 +1619,11 @@ namespace
                 Previous = Buffer.data();
             }
         }
-        auto Value = ModsPath.wstring();
-        if (Previous && !Previous->empty())
-        {
-            Value.append(L";");
-            Value.append(*Previous);
-        }
+        // An explicit UE4SS_MODS_PATHS value is an override. Preserve it exactly so
+        // MO2 or a controlled compatibility run cannot be shadowed by stale physical
+        // mods. The physical game Mods directory remains the default when no override
+        // was supplied.
+        auto Value = Previous && !Previous->empty() ? *Previous : ModsPath.wstring();
         if (!SetEnvironmentVariableW(L"UE4SS_MODS_PATHS", Value.c_str()))
         {
             throw std::runtime_error("SetEnvironmentVariableW failed");
@@ -1169,12 +1707,24 @@ auto wmain(const int ArgumentCount, wchar_t** Arguments) -> int
         const auto SelfDirectory = SelfPath.parent_path();
         const auto UE4SS = SelfDirectory / L"ue4ss" / L"UE4SS.dll";
         const auto Settings = SelfDirectory / L"ue4ss" / L"UE4SS-settings.ini";
+        bool SettingsRepaired{};
         if (!ValidatePinnedFile(UE4SS, ExpectedUE4SSBytes, ExpectedUE4SSSha256,
                                 L"Pinned UE4SS runtime") ||
-            !ValidatePinnedFile(Settings, ExpectedSettingsBytes, ExpectedSettingsSha256,
-                                L"Pinned UE4SS settings"))
+            !EnsureCompatibleSettings(
+                    Settings, Options.ValidateOnly, SettingsRepaired))
         {
             return 2;
+        }
+        if (SettingsRepaired)
+        {
+            constexpr auto Message =
+                    L"UNBSE updated UE4SS-settings.ini.\n\n"
+                    L"Start UNBSELoader again from Vortex, Mod Organizer 2, or your "
+                    L"normal launcher. The game was not started during this repair.";
+            std::wcout << Message << L"\n";
+            MessageBoxW(nullptr, Message, L"UNBSE Settings Updated - Launch Again",
+                        MB_OK | MB_ICONINFORMATION | MB_SETFOREGROUND);
+            return 0;
         }
 
         const auto Game = FindGameExecutable(Options.GameExecutable, SelfDirectory);
@@ -1244,13 +1794,7 @@ auto wmain(const int ArgumentCount, wchar_t** Arguments) -> int
         }
         RememberAssetWarnings(PendingAssets, GameHash);
 
-        auto GameArguments = Options.GameArguments;
-        if (std::find(GameArguments.begin(), GameArguments.end(), L"--disable-ue4ss") ==
-            GameArguments.end())
-        {
-            GameArguments.emplace_back(L"--disable-ue4ss");
-        }
-        auto CommandLine = BuildCommandLine(*Game, GameArguments);
+        auto CommandLine = BuildCommandLine(*Game, Options.GameArguments);
         std::vector<wchar_t> MutableCommandLine(CommandLine.begin(), CommandLine.end());
         MutableCommandLine.push_back(L'\0');
 
@@ -1298,14 +1842,15 @@ auto wmain(const int ArgumentCount, wchar_t** Arguments) -> int
         }
         else
         {
-            InjectionSucceeded = InjectLibrary(
-                    Process.get(), ProcessInfo.dwProcessId, UE4SS);
-            if (InjectionSucceeded &&
-                ResumeThread(MainThread.get()) == static_cast<DWORD>(-1))
+            if (ResumeThread(MainThread.get()) == static_cast<DWORD>(-1))
             {
                 std::wcerr << L"ERROR: ResumeThread failed: "
                            << FormatWindowsError(GetLastError()) << L"\n";
-                InjectionSucceeded = false;
+            }
+            else
+            {
+                InjectionSucceeded = InjectLibrary(
+                        Process.get(), ProcessInfo.dwProcessId, UE4SS);
             }
         }
 
