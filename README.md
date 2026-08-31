@@ -5,6 +5,24 @@ provide a small, open native extension layer for mods: plugin loading, lifecycle
 events, messaging, runtime information, executable trampolines, and versioned SDK
 interfaces.
 
+## Current release
+
+UNBSE `0.13.0-rc.1` is the current release candidate for Steam runtime
+`1.512.105.0`.
+
+- The UE4SS host, UNBSE core, OBSE64 interoperability module, and loader are
+  Authenticode-signed and timestamped.
+- ConsoleUtils `1.1` is supported through an exact, compatibility-only legacy
+  ABI path. UNBSE does not package, rebuild, modify, or re-sign ConsoleUtils.
+- The loader detects incompatible older `UE4SS-settings.ini` files and can
+  repair only the required keys after creating a backup. It then exits and
+  asks the user to restart through Vortex, MO2, or their normal launcher.
+- One archive supports manual installation, Vortex, and Mod Organizer 2 without
+  overwriting `mods.txt`, `mods.json`, or third-party mod activation state.
+
+See the [0.13.0-rc.1 release notes](docs/release-notes-0.13.0-rc.1.md) for the
+complete compatibility and verification details.
+
 ## Build a plugin
 
 UNBSE is designed to be extended. Plugin developers can use the public,
