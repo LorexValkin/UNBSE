@@ -51,6 +51,39 @@ function Get-UNBSEHashBytes {
         $sha256.Dispose()
     }
 }
+
+function Add-UNBSEIniSection {
+    param(
+        [Collections.Generic.List[string]]$Lines,
+        [Parameter(Mandatory)][string]$Section,
+        [Parameter(Mandatory)][hashtable]$Settings
+    )
+
+    $insert = $Lines.Count
+    $trailingEmptySection = -1
+    for ($i = $Lines.Count - 1; $i -ge 0; $i--) {
+        $trim = $Lines[$i].Trim()
+        if ($trim -eq '' -or $trim -match '^[;#]') { continue }
+        if ($trim -match '^\[[^\]]+\]\s*$') { $trailingEmptySection = $i }
+        break
+    }
+    if ($trailingEmptySection -ge 0) {
+        # UE4SS accepts its stock empty [ExperimentalFeatures] section only at EOF.
+        # Keep any newly added section before that trailing empty section.
+        $insert = $trailingEmptySection
+        while ($insert -gt 0 -and $Lines[$insert - 1].Trim() -eq '') { $insert-- }
+    }
+
+    $block = [Collections.Generic.List[string]]::new()
+    if ($insert -gt 0 -and $Lines[$insert - 1].Trim() -ne '') { $block.Add('') }
+    $block.Add("[$Section]")
+    foreach ($name in @($Settings.Keys | Sort-Object)) {
+        $block.Add("$name = $($Settings[$name])")
+    }
+    if ($insert -lt $Lines.Count -and $Lines[$insert].Trim() -ne '') { $block.Add('') }
+    $Lines.InsertRange($insert, [string[]]$block)
+}
+
 function Test-UNBSEExactFile {
     param([string]$Path, [string]$Sha256, [long]$Bytes, [string]$Label)
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return "$Label is missing: $Path" }
@@ -152,9 +185,7 @@ function Set-UNBSERequiredIni {
     foreach($section in @($bySection.Keys | Sort-Object)){
         if($bySection[$section].Count -eq 0) { continue }
         if(-not $parsed.Sections.ContainsKey($section) -or $parsed.Sections[$section].Count -eq 0) {
-            if($lines.Count -gt 0 -and $lines[$lines.Count-1] -ne '') { $lines.Add('') }
-            $lines.Add("[$section]")
-            foreach($name in @($bySection[$section].Keys | Sort-Object)){ $lines.Add("$name = $($bySection[$section][$name])") }
+            Add-UNBSEIniSection -Lines $lines -Section $section -Settings $bySection[$section]
             continue
         }
         $header=-1
@@ -183,9 +214,7 @@ function Set-UNBSEDefaultIni {
         $header=-1
         for($i=0;$i -lt $lines.Count;$i++){if($lines[$i].Trim() -ceq "[$section]"){$header=$i;break}}
         if($header -lt 0) {
-            if($lines.Count -gt 0 -and $lines[$lines.Count-1] -ne '') { $lines.Add('') }
-            $lines.Add("[$section]")
-            foreach($name in @($bySection[$section].Keys | Sort-Object)){ $lines.Add("$name = $($bySection[$section][$name])") }
+            Add-UNBSEIniSection -Lines $lines -Section $section -Settings $bySection[$section]
             continue
         }
         $insert=$header+1

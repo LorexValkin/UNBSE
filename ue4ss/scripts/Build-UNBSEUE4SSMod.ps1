@@ -10,6 +10,7 @@ param(
     [string]$ArtifactSigningDlibPath,
     [string]$ArtifactSigningMetadataPath,
     [string]$TimestampUrl = 'http://timestamp.acs.microsoft.com',
+    [switch]$TrustExistingPatchedSource,
     [ValidateRange(1, 64)][int]$Parallel = 8
 )
 
@@ -247,7 +248,8 @@ foreach ($submodule in $manifest.upstream.submodules) {
     }
 }
 
-foreach ($patch in $patches) {
+for ($patchIndex = 0; $patchIndex -lt $patches.Count; $patchIndex++) {
+    $patch = $patches[$patchIndex]
     $patchRoot = if ($patch.ApplyRoot) {
         Assert-UNBSENoReparsePath (Join-Path $source $patch.ApplyRoot)
     } else { $source }
@@ -268,6 +270,22 @@ foreach ($patch in $patches) {
     $forwardCheckExitCode = $LASTEXITCODE
     $ErrorActionPreference = $savedErrorPreference
     if ($forwardCheckExitCode -ne 0) {
+        $laterChangedPaths = @()
+        if ($patchIndex + 1 -lt $patches.Count) {
+            $laterChangedPaths = @($patches[($patchIndex + 1)..($patches.Count - 1)] |
+                Where-Object { $_.ApplyRoot -ceq $patch.ApplyRoot } |
+                ForEach-Object { $_.ExpectedChangedPaths } |
+                Sort-Object -Unique)
+        }
+        $overlapsLaterPatch = @($patch.ExpectedChangedPaths | Where-Object {
+                $_ -in $laterChangedPaths
+            }).Count -gt 0
+        if ($TrustExistingPatchedSource -and $overlapsLaterPatch) {
+            Write-Warning (
+                "Accepting an existing patched source file changed again by a later pinned patch: " +
+                $patch.Path)
+            continue
+        }
         throw "A UNBSE patch is neither cleanly applicable nor already applied: $($patch.Path)"
     }
     Invoke-UNBSENative git @('-C', $patchRoot, 'apply', '--unidiff-zero', $patch.Path)
@@ -319,6 +337,7 @@ try {
         '-B', $build,
         '-G', 'Visual Studio 17 2022',
         '-A', 'x64',
+        "-DFETCHCONTENT_FULLY_DISCONNECTED=$($TrustExistingPatchedSource.IsPresent.ToString().ToUpperInvariant())",
         "-DUNBSE_MOD_SOURCE_DIR=$($modSource.Replace('\', '/'))"
     )
     Invoke-UNBSENative cmake @(
@@ -333,6 +352,7 @@ try {
         '-B', $interopBuild,
         '-G', 'Visual Studio 17 2022',
         '-A', 'x64',
+        "-DFETCHCONTENT_FULLY_DISCONNECTED=$($TrustExistingPatchedSource.IsPresent.ToString().ToUpperInvariant())",
         "-DUNBSE_MOD_SOURCE_DIR=$($interopSource.Replace('\', '/'))"
     )
     Invoke-UNBSENative cmake @(

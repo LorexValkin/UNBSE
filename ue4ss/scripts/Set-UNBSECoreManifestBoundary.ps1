@@ -48,8 +48,8 @@ $manifestFull = Get-CanonicalFile $ManifestPath
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $repositoryRoot = $repositoryRoot.TrimEnd(
     [IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
-$coreVersion = '0.13.2-rc.1'
-$foundationId = 'ue4ss-3.0.1-beta0-68dd45cb-unbse-patchset-v1-mod-0.13.2-rc.1'
+$coreVersion = '0.13.2-rc.2'
+$foundationId = 'ue4ss-3.0.1-beta0-68dd45cb-unbse-patchset-v1-mod-0.13.2-rc.2'
 $coreSourcePaths = @(
     'include/UNBSEAddonHostV1.h',
     'include/UNBSEMessagingV1.h',
@@ -132,6 +132,12 @@ if ([string]$manifest.defaultSettings.'UNBSE.EnableAssetContainerWarning' -cne '
 }
 if ([string]$manifest.defaultSettings.'General.bUseUObjectArrayCache' -cne 'false') {
     Fail 'the packaged UObject array cache default must be false'
+}
+if ([string]$manifest.packagedSettings.'Debug.GuiConsoleEnabled' -cne '1' -or
+    [string]$manifest.packagedSettings.'Debug.GuiConsoleVisible' -cne '1' -or
+    [string]$manifest.packagedSettings.'Debug.GraphicsAPI' -cne 'dx11' -or
+    [string]$manifest.packagedSettings.'Debug.RenderMode' -cne 'ExternalThread') {
+    Fail 'the packaged debug GUI settings must match the human-verified launch profile'
 }
 if ($null -ne $manifest.requiredSettings.PSObject.Properties[
         'General.bUseUObjectArrayCache']) {

@@ -106,7 +106,7 @@ $foundationArchive = Assert-UNBSENoReparsePath $FoundationArchivePath
 $corePackage = Assert-UNBSENoReparsePath $CorePackageRoot
 $manifest = Get-Content -LiteralPath $manifestFile -Raw | ConvertFrom-Json
 $version = [string]$manifest.unbseMod.version
-if ($version -cne '0.13.2-rc.1') {
+if ($version -cne '0.13.2-rc.2') {
     throw "Unexpected release version: $version"
 }
 if ((Get-Item -LiteralPath $foundationArchive).Length -ne
@@ -157,14 +157,21 @@ try {
     $manifest.defaultSettings.psobject.Properties | ForEach-Object {
         $defaultSettings[$_.Name] = [string]$_.Value
     }
+    $packagedSettings = @{}
+    $manifest.packagedSettings.psobject.Properties | ForEach-Object {
+        $packagedSettings[$_.Name] = [string]$_.Value
+    }
     $settingsPath = Join-Path $runtimeStage 'ue4ss\UE4SS-settings.ini'
     Set-UNBSERequiredIni `
         -Path $settingsPath `
         -RequiredSettings $requiredSettings
+    Set-UNBSERequiredIni `
+        -Path $settingsPath `
+        -RequiredSettings $packagedSettings
     Set-UNBSEDefaultIni `
         -Path $settingsPath `
         -DefaultSettings $defaultSettings
-    $settingsProfileMarker = '; UNBSE-Settings-Profile: 0.13.2-rc.1'
+    $settingsProfileMarker = '; UNBSE-Settings-Profile: 0.13.2-rc.2'
     $settingsLines = [IO.File]::ReadAllLines($settingsPath)
     if ($settingsLines -cnotcontains $settingsProfileMarker) {
         [IO.File]::WriteAllLines(
@@ -222,7 +229,7 @@ try {
         @($manifest.patchSet.patches | ForEach-Object { [string]$_.relativePath }) +
         @('.gitattributes', 'README.md', 'docs/release-notes-0.12.0.md',
             'docs/release-notes-0.13.0-rc.1.md',
-            'docs/release-notes-0.13.2-rc.1.md',
+            'docs/release-notes-0.13.2-rc.2.md',
             'ue4ss/foundation-manifest.json')
     ) | Sort-Object -Unique
     foreach ($relativePath in $sourcePaths) {

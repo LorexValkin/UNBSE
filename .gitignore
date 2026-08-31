@@ -57,5 +57,6 @@ build*/
 /local/nexusmods-release-rich-editor.txt
 
 # Tool caches
+/.claude/
 __pycache__/
 .pytest_cache/
