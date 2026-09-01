@@ -5,7 +5,7 @@ param(
     [string]$OutputDirectory = (Join-Path $PSScriptRoot '..\..\release'),
     [string]$ManifestPath = (Join-Path $PSScriptRoot '..\foundation-manifest.json'),
     [string]$CompatibilityReviewPath =
-        (Join-Path $PSScriptRoot '..\..\release\UNBSE-0.14.0-mod-compatibility-review.csv')
+        (Join-Path $PSScriptRoot '..\..\release\UNBSE-0.14.1-mod-compatibility-review.csv')
 )
 
 Set-StrictMode -Version Latest
@@ -108,7 +108,7 @@ $foundationArchive = Assert-UNBSENoReparsePath $FoundationArchivePath
 $corePackage = Assert-UNBSENoReparsePath $CorePackageRoot
 $manifest = Get-Content -LiteralPath $manifestFile -Raw | ConvertFrom-Json
 $version = [string]$manifest.unbseMod.version
-if ($version -cne '0.14.0') {
+if ($version -cne '0.14.1') {
     throw "Unexpected release version: $version"
 }
 $compatibilityReview = Assert-UNBSENoReparsePath $CompatibilityReviewPath
@@ -182,7 +182,7 @@ try {
     Set-UNBSEDefaultIni `
         -Path $settingsPath `
         -DefaultSettings $defaultSettings
-    $settingsProfileMarker = '; UNBSE-Settings-Profile: 0.14.0'
+    $settingsProfileMarker = '; UNBSE-Settings-Profile: 0.14.1'
     $settingsLines = [IO.File]::ReadAllLines($settingsPath)
     if ($settingsLines -cnotcontains $settingsProfileMarker) {
         [IO.File]::WriteAllLines(
@@ -246,7 +246,7 @@ try {
         @('.gitattributes', 'README.md', 'docs/release-notes-0.12.0.md',
             'docs/release-notes-0.13.0-rc.1.md',
             'docs/release-notes-0.13.5.md',
-            'docs/release-notes-0.14.0.md',
+            'docs/release-notes-0.14.1.md',
             'ue4ss/foundation-manifest.json')
     ) | Sort-Object -Unique
     foreach ($relativePath in $sourcePaths) {

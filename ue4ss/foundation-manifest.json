@@ -1,7 +1,7 @@
 {
   "schema": "UNBSEUE4SSFoundation",
   "schemaVersion": 1,
-  "foundationId": "ue4ss-3.0.1-beta0-68dd45cb-unbse-patchset-v1-mod-0.14.0",
+  "foundationId": "ue4ss-3.0.1-beta0-68dd45cb-unbse-patchset-v1-mod-0.14.1",
   "upstream": {
     "repository": "https://github.com/UE4SS-RE/RE-UE4SS.git",
     "commit": "68dd45cb5630bd7745310c6630b19c14345176a2",
@@ -42,7 +42,7 @@
       "relativePath": "ue4ss/UE4SS-settings.ini",
       "sha256": "4E9BBDB5F50A6DCAFFE4046EDB2D78669255C7ADC079AF98E8D3E364C3593E74",
       "bytes": 7848,
-      "packageSha256": "D6EA1F5495F2BCB0D1989247C06BDC1CB5106B3CD49CF80B6DB23CF858F38A93",
+      "packageSha256": "53243D8E875ADD53F9DCF5986566366C115C2F05EEF89C035C66F34606B90788",
       "packageBytes": 7956
     },
     {
@@ -175,7 +175,7 @@
   },
   "unbseMod": {
     "name": "UNBSE",
-    "version": "0.14.0",
+    "version": "0.14.1",
     "target": "UNBSEMod",
     "buildConfiguration": "Game__Shipping__Win64",
     "packageDll": "ue4ss/Mods/UNBSE/dlls/main.dll",
@@ -223,7 +223,7 @@
       },
       {
         "relativePath": "ue4ss/loader/src/main.cpp",
-        "sha256": "5D1B38588BC520BDFE7AC0F25F06724CFA8BF5F44492830D820E0344E36AE57B"
+        "sha256": "B918E71683137BD90A568EDAA5E971B179EF822667EFB2A221A2F9495FCC4DDC"
       },
       {
         "relativePath": "ue4ss/loader/src/UNBSEAssetPreflight.cpp",
@@ -263,7 +263,7 @@
       },
       {
         "relativePath": "ue4ss/mod/UNBSE/src/CoreLuaBinding.cpp",
-        "sha256": "A04DB6CA1992F86ABDEBA771769DD8CE1AC069DA9553649CC203DE00D016F0D5"
+        "sha256": "E12668893A75F1B1D509A4CFA137938E48E32477601EBB32FD41745E57836C4E"
       },
       {
         "relativePath": "ue4ss/mod/UNBSE/src/ScriptServiceRegistry.cpp",
@@ -271,7 +271,7 @@
       },
       {
         "relativePath": "ue4ss/mod/UNBSE/src/UNBSECoreMod.cpp",
-        "sha256": "F12786F32A5EB7A55E2713BA6CC05EEC65323C36E0A5C2D6ADBDA3CB17BAA472"
+        "sha256": "5673E728DCC81B3BB7E5A8ABB99CB3C401AF97B5FF5D4283169460D80D9E2BEE"
       },
       {
         "relativePath": "ue4ss/scripts/Build-UNBSEUE4SSMod.ps1",
@@ -283,11 +283,11 @@
       },
       {
         "relativePath": "ue4ss/scripts/Package-UNBSERelease.ps1",
-        "sha256": "6898042AE502FB34E824596871CC338CC7846EA7426CE8686BFC982DF357FE5C"
+        "sha256": "2DB7CAB24E3AA517CE770AA56C66BD15CD10FB712BC9807DBB7177567326DD4F"
       },
       {
         "relativePath": "ue4ss/scripts/Set-UNBSECoreManifestBoundary.ps1",
-        "sha256": "F19539075B2B59428CAAE80FC7D1E721E14EEBE3437E1B1D533B10C63EE071C5"
+        "sha256": "BC4CA9B2F94D300E560BC1D114063700681A47CDF6517DDF45EC1339D1334543"
       },
       {
         "relativePath": "ue4ss/scripts/UNBSEUE4SSFoundation.psm1",

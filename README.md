@@ -7,7 +7,7 @@ interfaces.
 
 ## Current candidate
 
-UNBSE `0.14.0` is the current signed public prerelease candidate for Steam
+UNBSE `0.14.1` is the current signed prerelease candidate for Steam
 runtime `1.512.105.0`.
 
 - The published artifacts carry timestamped Computer Works signatures on every
@@ -31,7 +31,7 @@ runtime `1.512.105.0`.
 - One archive supports manual installation, Vortex, and Mod Organizer 2 without
   overwriting `mods.txt`, `mods.json`, or third-party mod activation state.
 
-See the [0.14.0 release notes](docs/release-notes-0.14.0.md) for the
+See the [0.14.1 release notes](docs/release-notes-0.14.1.md) for the
 complete compatibility and verification details.
 
 ## Build a plugin
@@ -47,7 +47,7 @@ request only the runtime services they need.
 The documentation is kept with the source and is published as a static website
 from `main`, so the guide and machine-readable API describe the shipped SDK.
 
-The `0.14.0` prerelease candidate targets only the current Steam executable,
+The `0.14.1` prerelease candidate targets only the current Steam executable,
 `OblivionRemastered-Win64-Shipping.exe` version `1.512.105.0`. UNBSE includes its
 clean-room OBSE64 interoperability module and discovers compatible native plugins
 from `OBSE/Plugins`. Compatibility is determined plugin by plugin; support for
@@ -61,7 +61,7 @@ limits.
 
 ## Install
 
-UNBSE `0.14.0` targets only the Steam executable version `1.512.105.0`.
+UNBSE `0.14.1` targets only the Steam executable version `1.512.105.0`.
 The packaged UE4SS console is intentionally visible so its startup log, loaded
 mods, and UNBSE compatibility messages are immediately observable. The same log
 is retained in `ue4ss/UE4SS.log`.
@@ -72,7 +72,7 @@ game's `Win64` directory. Keep the existing `OBSE/Plugins` directory.
 
 ### One archive: manual, Vortex, or MO2
 
-Use the single `UNBSE-0.14.0.zip` archive. For a manual install, extract it
+Use the single `UNBSE-0.14.1.zip` archive. For a manual install, extract it
 directly into `Oblivion Remastered/OblivionRemastered/Binaries/Win64`. Launch
 `UNBSELoader.exe` for settings validation and launch; normal launch skips both
 optional warning scans with the packaged defaults. On first launch
@@ -84,7 +84,7 @@ unrelated settings and comments are preserved. After a repair, the loader exits
 without starting the game and asks you to launch it again from Vortex, MO2, or
 your normal launcher. `--validate-only` reports the same differences without
 changing the file. The packaged and repaired INI also contains the comment
-marker `UNBSE-Settings-Profile: 0.14.0` for identification.
+marker `UNBSE-Settings-Profile: 0.14.1` for identification.
 
 For Vortex, install and enable the same zip,
 remove the separate Nexus UE4SS package (mod 32) if present, disable Vortex's
@@ -99,7 +99,7 @@ state. This is the only install archive published for the release.
 
 ### Mod Organizer 2
 
-1. Install the same `UNBSE-0.14.0.zip` as one MO2 mod, accept the Oblivion
+1. Install the same `UNBSE-0.14.1.zip` as one MO2 mod, accept the Oblivion
    Remastered plugin's automatic file-tree fix, and enable it. The plugin moves
    the complete self-contained payload under `Root`; do not use Root Builder,
    rename `dwmapi.dll`, or configure a force-loaded library.
