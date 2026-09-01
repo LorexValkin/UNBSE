@@ -1,1 +1,2 @@
 *.patch text eol=lf whitespace=-blank-at-eol
+release/*.csv -text whitespace=cr-at-eol
