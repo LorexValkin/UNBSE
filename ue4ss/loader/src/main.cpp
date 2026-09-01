@@ -50,7 +50,7 @@ namespace
     constexpr std::wstring_view ExpectedProxySha256 =
             L"02822565CF0E4CC607BADB6F17F3F6C4D37A4B6ED05849D98CD18C6C685183B5";
     constexpr std::string_view SettingsProfileMarker =
-            "; UNBSE-Settings-Profile: 0.14.1";
+            "; UNBSE-Settings-Profile: 0.14.2";
 
     enum class EIniSettingPolicy
     {
@@ -1022,7 +1022,7 @@ namespace
             return true;
         }
 
-        std::wcerr << L"ERROR: UE4SS-settings.ini is not UNBSE 0.14.1 compliant:\n";
+        std::wcerr << L"ERROR: UE4SS-settings.ini is not UNBSE 0.14.2 compliant:\n";
         for (const auto& Issue : Review.Issues)
         {
             std::wcerr << L"  - " << Utf8ToWide(Issue) << L"\n";
@@ -1035,7 +1035,7 @@ namespace
         }
 
         std::wostringstream Prompt{};
-        Prompt << L"UE4SS-settings.ini is not compatible with UNBSE 0.14.1.\n\n";
+        Prompt << L"UE4SS-settings.ini is not compatible with UNBSE 0.14.2.\n\n";
         constexpr std::size_t MaximumDisplayedIssues = 15;
         const auto Displayed = std::min(Review.Issues.size(), MaximumDisplayedIssues);
         for (std::size_t Index = 0; Index < Displayed; ++Index)

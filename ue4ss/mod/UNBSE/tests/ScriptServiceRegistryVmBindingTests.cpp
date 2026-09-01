@@ -1,9 +1,11 @@
 #include <ScriptServiceRegistry.hpp>
 
+#include <array>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <iostream>
+#include <string_view>
 
 namespace
 {
@@ -34,6 +36,22 @@ namespace
         std::cerr << Scenario << ": expected " << Expected << ", got " << Actual << '\n';
         return false;
     }
+
+    auto ExpectCapabilityEnabled(
+            const std::uint32_t Result,
+            const std::string_view ModName) -> bool
+    {
+        const auto Capability = Result == UNBSE_SCRIPT_RESULT_OK;
+        if (Capability)
+        {
+            return true;
+        }
+
+        std::cerr << "observed load-order attachment for " << ModName
+                  << ": expected capability:true,resultCode:0, got capability:false,resultCode:"
+                  << Result << '\n';
+        return false;
+    }
 } // namespace
 
 auto main() -> int
@@ -41,7 +59,7 @@ auto main() -> int
     using namespace std::chrono_literals;
     using RC::UNBSE::FScriptServiceRegistry;
 
-    static_assert(FScriptServiceRegistry::MaxVmBindings == 256);
+    static_assert(FScriptServiceRegistry::MaxVmBindings == 4096);
 
     constexpr std::uintptr_t FirstVmIdentity = 0x1000;
     constexpr std::uintptr_t ReplacementVmIdentity = 0x100000;
@@ -51,6 +69,71 @@ auto main() -> int
 
     FScriptServiceRegistry Registry;
     bool Passed = true;
+
+    constexpr std::array<std::string_view, 42> ObservedLuaLoadOrder{
+            "BPML_GenericFunctions",
+            "BPModLoaderMod",
+            "AutoConfirmPrompts",
+            "BeastMenu",
+            "BowHeadshotDamage",
+            "ClothingMenu",
+            "CoolEnchantingMod",
+            "DynamicBreathMultiplier",
+            "EnhancedLightRadius",
+            "FasterListScrolling",
+            "HideArmor",
+            "HideQuiver",
+            "ImprovedAmbientOcclusion",
+            "KwaNotificationsLua",
+            "LumenRemastered",
+            "MadCloak",
+            "MadEXP",
+            "MadExtender",
+            "MadMCM",
+            "MadSpellBind",
+            "MadSpellDagon",
+            "MadSpellPack",
+            "MadSpellScaling",
+            "MadTransform",
+            "MadWeaponRescaler",
+            "MeleeStagger",
+            "NaturalBodyMorph",
+            "NPCAppearanceManager",
+            "OBRDremoraHorns",
+            "OBRFirstPersonSkin",
+            "RaceMenuUtilities",
+            "ShadowsReworked",
+            "SimplySwimUp",
+            "SkipContinuePrompt",
+            "SmithingMenu",
+            "SpellBowStagger",
+            "SpellSneak",
+            "TesSyncMapInjector",
+            "UNBSE",
+            "UNBSEOBSE64Interop",
+            "UpdateSourceFormForEnchant",
+            "WmkTimeOnHUD",
+    };
+    constexpr std::size_t NaturalBodyMorphIndex = 26;
+    static_assert(std::string_view{ObservedLuaLoadOrder[NaturalBodyMorphIndex]} ==
+                  "NaturalBodyMorph");
+
+    {
+        FScriptServiceRegistry LoadOrderRegistry;
+        constexpr std::uintptr_t LoadOrderFirstVmIdentity = 0x400000;
+
+        for (std::size_t Index = 0; Index < ObservedLuaLoadOrder.size(); ++Index)
+        {
+            Passed &= ExpectCapabilityEnabled(
+                    LoadOrderRegistry.AttachVm(
+                            LoadOrderFirstVmIdentity + Index, AttachmentThreadId),
+                    ObservedLuaLoadOrder[Index]);
+        }
+        Passed &= ExpectEqual(
+                LoadOrderRegistry.VmCount(),
+                ObservedLuaLoadOrder.size(),
+                "attach every VM in the observed Lua load order");
+    }
 
     for (std::size_t Index = 0; Index < 64; ++Index)
     {
