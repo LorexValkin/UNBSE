@@ -38,7 +38,9 @@ consistency; it is not evidence of new plugin validation.
 
 ## Verification status
 
-Targeted ScriptService registry and observed-load-order tests pass locally.
-Production build, package, checksum, Authenticode, and archive-content checks
-must pass before publishing. Human in-game testing remains required before
-calling 0.14.2 validated or release-ready.
+Targeted ScriptService registry, observed-load-order, source-pin, foundation,
+production-build, package-structure, checksum, Authenticode, and
+archive-content checks pass locally. The packaged UE4SS host, UNBSE core,
+OBSE64 interop, and launcher binaries carry timestamped Computer Works
+signatures. Human in-game testing remains required before calling 0.14.2
+validated or release-ready.

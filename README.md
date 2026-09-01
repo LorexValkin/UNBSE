@@ -7,7 +7,7 @@ interfaces.
 
 ## Current candidate
 
-UNBSE `0.14.2` is the current prerelease candidate for Steam
+UNBSE `0.14.2` is the current signed prerelease candidate for Steam
 runtime `1.512.105.0`.
 
 - The published artifacts carry timestamped Computer Works signatures on every
