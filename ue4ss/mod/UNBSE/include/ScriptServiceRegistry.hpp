@@ -25,7 +25,7 @@ namespace RC::UNBSE
     {
       public:
         static constexpr std::uint32_t CoreOwnerHandle = 1;
-        static constexpr std::size_t MaxVmBindings = 16;
+        static constexpr std::size_t MaxVmBindings = 256;
 
         FScriptServiceRegistry() = default;
         ~FScriptServiceRegistry();
