@@ -7,15 +7,19 @@ interfaces.
 
 ## Current candidate
 
-UNBSE `0.13.5` is the current signed production candidate for Steam runtime
-`1.512.105.0`.
+UNBSE `0.14.0` is the current signed public prerelease candidate for Steam
+runtime `1.512.105.0`.
 
-- Every produced or patched PE in the candidate package is Authenticode-signed
-  by Computer Works and timestamped. Real in-game testing is still required
-  before the candidate may be called validated or release-ready.
+- The published artifacts carry timestamped Computer Works signatures on every
+  produced or patched PE. Local unsigned packages remain engineering test
+  material. Real in-game testing is still required before the candidate may be
+  called validated or promoted from prerelease.
 - Legacy 11-slot UE4SS C++ mods are handled through a name-agnostic ABI adapter.
   ConsoleUtils `1.1` additionally uses an exact EngineTick compatibility rule;
   UNBSE does not package, rebuild, modify, or re-sign third-party mods.
+- Legacy Lua calls to `KismetSystemLibrary.ExecuteConsoleCommand` using the
+  historical three-argument shape receive only the omitted trailing value.
+  Other UFunctions and argument-count mismatches retain strict validation.
 - `UE4SS-settings.ini` exposes independent plugin-version and asset-container
   warning toggles; both ship off. Opt-in warnings use a resizable dialog with a
   scrollable evidence pane, while `--validate-only` remains a no-popup report.
@@ -27,7 +31,7 @@ UNBSE `0.13.5` is the current signed production candidate for Steam runtime
 - One archive supports manual installation, Vortex, and Mod Organizer 2 without
   overwriting `mods.txt`, `mods.json`, or third-party mod activation state.
 
-See the [0.13.5 release notes](docs/release-notes-0.13.5.md) for the
+See the [0.14.0 release notes](docs/release-notes-0.14.0.md) for the
 complete compatibility and verification details.
 
 ## Build a plugin
@@ -43,7 +47,7 @@ request only the runtime services they need.
 The documentation is kept with the source and is published as a static website
 from `main`, so the guide and machine-readable API describe the shipped SDK.
 
-The `0.13.5` internal candidate targets only the current Steam executable,
+The `0.14.0` prerelease candidate targets only the current Steam executable,
 `OblivionRemastered-Win64-Shipping.exe` version `1.512.105.0`. UNBSE includes its
 clean-room OBSE64 interoperability module and discovers compatible native plugins
 from `OBSE/Plugins`. Compatibility is determined plugin by plugin; support for
@@ -57,7 +61,7 @@ limits.
 
 ## Install
 
-UNBSE `0.13.5` targets only the Steam executable version `1.512.105.0`.
+UNBSE `0.14.0` targets only the Steam executable version `1.512.105.0`.
 The packaged UE4SS console is intentionally visible so its startup log, loaded
 mods, and UNBSE compatibility messages are immediately observable. The same log
 is retained in `ue4ss/UE4SS.log`.
@@ -68,7 +72,7 @@ game's `Win64` directory. Keep the existing `OBSE/Plugins` directory.
 
 ### One archive: manual, Vortex, or MO2
 
-Use the single `UNBSE-0.13.5.zip` archive. For a manual install, extract it
+Use the single `UNBSE-0.14.0.zip` archive. For a manual install, extract it
 directly into `Oblivion Remastered/OblivionRemastered/Binaries/Win64`. Launch
 `UNBSELoader.exe` for settings validation and launch; normal launch skips both
 optional warning scans with the packaged defaults. On first launch
@@ -80,7 +84,7 @@ unrelated settings and comments are preserved. After a repair, the loader exits
 without starting the game and asks you to launch it again from Vortex, MO2, or
 your normal launcher. `--validate-only` reports the same differences without
 changing the file. The packaged and repaired INI also contains the comment
-marker `UNBSE-Settings-Profile: 0.13.5` for identification.
+marker `UNBSE-Settings-Profile: 0.14.0` for identification.
 
 For Vortex, install and enable the same zip,
 remove the separate Nexus UE4SS package (mod 32) if present, disable Vortex's
@@ -95,7 +99,7 @@ state. This is the only install archive published for the release.
 
 ### Mod Organizer 2
 
-1. Install the same `UNBSE-0.13.5.zip` as one MO2 mod, accept the Oblivion
+1. Install the same `UNBSE-0.14.0.zip` as one MO2 mod, accept the Oblivion
    Remastered plugin's automatic file-tree fix, and enable it. The plugin moves
    the complete self-contained payload under `Root`; do not use Root Builder,
    rename `dwmapi.dll`, or configure a force-loaded library.
@@ -277,7 +281,7 @@ account and certificate profile:
 The first command rebuilds the patched UE4SS host, core, interoperability DLL,
 and native launcher. The package manifest pins that exact host and the launcher
 will reject a substituted host, ensuring the shipped runtime contains the
-`UE4SS.CppModLifecycle` diagnostic boundary.
+`UE4SS.CppModLifecycle` diagnostic boundary and the bounded legacy Lua adapter.
 When signing inputs are supplied, those four UNBSE-produced or patched binaries
 receive verified, timestamped Authenticode signatures before their final hashes
 are recorded. The unchanged upstream `dwmapi.dll` proxy retains its upstream

@@ -1,0 +1,31 @@
+diff --git a/UE4SS/src/LuaType/LuaUObject.cpp b/UE4SS/src/LuaType/LuaUObject.cpp
+index 2e29271..e95c27a 100644
+--- a/UE4SS/src/LuaType/LuaUObject.cpp
++++ b/UE4SS/src/LuaType/LuaUObject.cpp
+@@ -147,9 +147,23 @@ namespace RC::LuaType
+ 
+             if (num_supplied_params != num_expected_params_with_return_value)
+             {
+-                lua.throw_error(fmt::format("[UFunction::setup_metamethods -> __call] UFunction expected {} parameters, received {}",
+-                                            num_expected_params,
+-                                            num_supplied_params));
++                const auto function_full_name = func->GetFullName();
++                const bool adapt_legacy_execute_console_command =
++                        num_supplied_params == 3 && num_expected_params_with_return_value == 4 &&
++                        (function_full_name == STR("Function /Script/Engine.KismetSystemLibrary.ExecuteConsoleCommand") ||
++                         function_full_name == STR("Function /Script/Engine.KismetSystemLibrary:ExecuteConsoleCommand"));
++                if (!adapt_legacy_execute_console_command)
++                {
++                    lua.throw_error(fmt::format("[UFunction::setup_metamethods -> __call] UFunction expected {} parameters, received {}",
++                                                num_expected_params,
++                                                num_supplied_params));
++                }
++
++                lua.set_nil();
++                static std::once_flag report_once{};
++                std::call_once(report_once, [] {
++                    Output::send(STR("[UNBSE] Legacy Lua ExecuteConsoleCommand call adapted (3 -> 4 parameters)\n"));
++                });
+             }
+ 
+             // for (uint8_t i = 0; i < num_expected_params; ++i)

@@ -7,56 +7,26 @@ build*/
 *.lib
 *.pdb
 
-# Test and proof material retained locally during the repository split
+# Local-only development, test, proof, and retained source material
 /tests/
-/plugins/fixtures/
-/ue4ss/proof-mod/
-/ue4ss/tests/
-
-# Retained standalone, probe, and optional-mod sources outside this release
-/Build.ps1
-/Install.ps1
-/Update.ps1
-/Test-UNBSEImportAudit.ps1
+*.tmp
+/*.ps1
 /CMakeLists.txt
 /MIGRATION.md
 /manifests/
 /plugins/
 /src/
-/include/UNBSECommon.h
-/include/UNBSEPluginAPI.h
-/include/TesXaagEvidence.hpp
+/tools/
+/include/*
 /ue4ss/mod/OBRPlayableRaces/
+/ue4ss/proof-mod/
+/ue4ss/tests/
 /ue4ss/mod/UNBSE/include/*
-!/ue4ss/mod/UNBSE/include/AddonRegistry.hpp
-!/ue4ss/mod/UNBSE/include/CoreLuaBinding.hpp
-!/ue4ss/mod/UNBSE/include/ScriptServiceRegistry.hpp
-!/ue4ss/mod/UNBSE/include/UNBSECoreMod.hpp
 /ue4ss/mod/UNBSE/src/*
-!/ue4ss/mod/UNBSE/src/AddonRegistry.cpp
-!/ue4ss/mod/UNBSE/src/CoreLuaBinding.cpp
-!/ue4ss/mod/UNBSE/src/ScriptServiceRegistry.cpp
-!/ue4ss/mod/UNBSE/src/UNBSECoreMod.cpp
-!/ue4ss/mod/UNBSE/src/core_dllmain.cpp
 /ue4ss/scripts/*
-!/ue4ss/scripts/Build-UNBSEUE4SSMod.ps1
-!/ue4ss/scripts/Install-UNBSEUE4SSMod.ps1
-!/ue4ss/scripts/Package-UNBSERelease.ps1
-!/ue4ss/scripts/Set-UNBSECoreManifestBoundary.ps1
-!/ue4ss/scripts/UNBSEUE4SSFoundation.psm1
-!/ue4ss/scripts/UNBSEUE4SSMod.psm1
-!/ue4ss/scripts/Update-UNBSESourceFilePins.ps1
 /ue4ss/addons/*
-!/ue4ss/addons/README.md
 /ue4ss/patches/0003-add-fscript-map-num-unchecked.patch
 
-# Private research archive and unpublished release drafts
-/AGENTS.md
+# Private research archive and unpublished release material
 /internal/
 /local/
-/local/nexusmods-release-rich-editor.txt
-
-# Tool caches
-/.claude/
-__pycache__/
-.pytest_cache/

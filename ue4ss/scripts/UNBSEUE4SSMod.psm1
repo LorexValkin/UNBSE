@@ -182,7 +182,8 @@ function Get-UNBSEUE4SSModAudit {
         [string]$packageManifest.patchedFoundation.sha256 -cne [string]$hostArtifact[0].sha256 -or
         [long]$packageManifest.patchedFoundation.bytes -ne [long]$hostArtifact[0].bytes -or
         (@($packageManifest.patchedFoundation.requiredCapabilityMarkers) -join "`n") -cne
-            'UE4SS.CppModLifecycle') {
+            ("UE4SS.CppModLifecycle`n" +
+             '[UNBSE] Legacy Lua ExecuteConsoleCommand call adapted')) {
         $errors.Add('Package patched UE4SS foundation contract is unsupported.')
     }
     foreach ($artifact in $expectedArtifacts) {

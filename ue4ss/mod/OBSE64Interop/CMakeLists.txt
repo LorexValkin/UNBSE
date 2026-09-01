@@ -26,7 +26,7 @@ target_link_libraries(${TARGET} PRIVATE psapi version)
 
 if (MSVC)
     target_compile_options(${TARGET} PRIVATE "/Brepro")
-    target_link_options(${TARGET} PRIVATE "/Brepro")
+    target_link_options(${TARGET} PRIVATE "/Brepro" "/PDBALTPATH:%_PDB%")
 endif()
 
 set_target_properties(${TARGET} PROPERTIES

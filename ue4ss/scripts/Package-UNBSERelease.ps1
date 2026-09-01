@@ -3,7 +3,9 @@ param(
     [Parameter(Mandatory)][string]$FoundationArchivePath,
     [string]$CorePackageRoot = (Join-Path $PSScriptRoot '..\..\out\ue4ss-package'),
     [string]$OutputDirectory = (Join-Path $PSScriptRoot '..\..\release'),
-    [string]$ManifestPath = (Join-Path $PSScriptRoot '..\foundation-manifest.json')
+    [string]$ManifestPath = (Join-Path $PSScriptRoot '..\foundation-manifest.json'),
+    [string]$CompatibilityReviewPath =
+        (Join-Path $PSScriptRoot '..\..\release\UNBSE-0.14.0-mod-compatibility-review.csv')
 )
 
 Set-StrictMode -Version Latest
@@ -106,8 +108,17 @@ $foundationArchive = Assert-UNBSENoReparsePath $FoundationArchivePath
 $corePackage = Assert-UNBSENoReparsePath $CorePackageRoot
 $manifest = Get-Content -LiteralPath $manifestFile -Raw | ConvertFrom-Json
 $version = [string]$manifest.unbseMod.version
-if ($version -cne '0.13.5') {
+if ($version -cne '0.14.0') {
     throw "Unexpected release version: $version"
+}
+$compatibilityReview = Assert-UNBSENoReparsePath $CompatibilityReviewPath
+$expectedCompatibilityReviewName = "UNBSE-$version-mod-compatibility-review.csv"
+if ([IO.Path]::GetFileName($compatibilityReview) -cne $expectedCompatibilityReviewName) {
+    throw "Unexpected compatibility review filename: $compatibilityReview"
+}
+$compatibilityRows = @(Import-Csv -LiteralPath $compatibilityReview)
+if ($compatibilityRows.Count -ne 659) {
+    throw "Unexpected compatibility review row count: $($compatibilityRows.Count)"
 }
 if ((Get-Item -LiteralPath $foundationArchive).Length -ne
     [long]$manifest.sourceDistribution.archiveBytes -or
@@ -171,7 +182,7 @@ try {
     Set-UNBSEDefaultIni `
         -Path $settingsPath `
         -DefaultSettings $defaultSettings
-    $settingsProfileMarker = '; UNBSE-Settings-Profile: 0.13.5'
+    $settingsProfileMarker = '; UNBSE-Settings-Profile: 0.14.0'
     $settingsLines = [IO.File]::ReadAllLines($settingsPath)
     if ($settingsLines -cnotcontains $settingsProfileMarker) {
         [IO.File]::WriteAllLines(
@@ -235,6 +246,7 @@ try {
         @('.gitattributes', 'README.md', 'docs/release-notes-0.12.0.md',
             'docs/release-notes-0.13.0-rc.1.md',
             'docs/release-notes-0.13.5.md',
+            'docs/release-notes-0.14.0.md',
             'ue4ss/foundation-manifest.json')
     ) | Sort-Object -Unique
     foreach ($relativePath in $sourcePaths) {
@@ -248,7 +260,7 @@ try {
     $sourceZip = Join-Path $output "UNBSE-$version-source.zip"
     New-ZipFromDirectory -SourceDirectory $dropInStage -DestinationPath $dropInZip
     New-ZipFromDirectory -SourceDirectory $sourceStage -DestinationPath $sourceZip
-    $releaseChecksums = @($dropInZip, $sourceZip |
+    $releaseChecksums = @($dropInZip, $sourceZip, $compatibilityReview |
         ForEach-Object {
         "$(Get-UNBSEHash $_)  $([IO.Path]::GetFileName($_))"
     })
@@ -263,6 +275,7 @@ try {
         Version = $version
         InstallArchive = $dropInZip
         SourceArchive = $sourceZip
+        CompatibilityReview = $compatibilityReview
         Checksums = $checksumPath
     } | ConvertTo-Json -Compress
 }

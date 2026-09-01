@@ -2,15 +2,18 @@ diff --git a/UE4SS/CMakeLists.txt b/UE4SS/CMakeLists.txt
 index 8ede504..d8325af 100644
 --- a/UE4SS/CMakeLists.txt
 +++ b/UE4SS/CMakeLists.txt
-@@ -62,3 +62,11 @@
+@@ -62,3 +62,14 @@
  target_compile_features(UE4SS PUBLIC cxx_std_23)
 -
 +# UNBSE release builds require a byte-identical runtime from identical source,
 +# toolchain, and configuration. Shipping already disables incremental linking;
-+# /Brepro also removes link-time entropy while preserving the PDB.
++# /Brepro also removes link-time entropy while preserving the PDB. Store only
++# the PDB filename in the image so the release DLL does not disclose its build
++# machine path.
 +if(MSVC OR CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC")
 +    target_link_options(UE4SS PRIVATE
 +        "$<$<STREQUAL:$<CONFIG>,Game__Shipping__Win64>:/Brepro>"
++        "$<$<STREQUAL:$<CONFIG>,Game__Shipping__Win64>:/PDBALTPATH:%_PDB%>"
 +    )
 +endif()
 +
