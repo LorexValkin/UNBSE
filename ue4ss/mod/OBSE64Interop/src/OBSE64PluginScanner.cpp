@@ -393,6 +393,11 @@ namespace RC::UNBSE::OBSE64
             Reasons |= CompatibilityReasonScriptExtenderTooOld;
         }
 
+        if ((Reasons & CompatibilityReasonAddressLibraryUnavailable) != 0)
+        {
+            return {EPluginCompatibilityDisposition::StructuralBlocker, Reasons};
+        }
+
         return {Reasons == CompatibilityReasonNone
                         ? EPluginCompatibilityDisposition::Verified
                         : EPluginCompatibilityDisposition::UnverifiedAttempt,

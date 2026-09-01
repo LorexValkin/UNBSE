@@ -129,7 +129,9 @@
             The supplied all-in-one v2 archive included
             <code>versionlib-1-512-105-0.bin</code>. Its presence was verified during
             the Game Settings Loader test, but it is not counted as a second OBSE64
-            plugin repair.
+            plugin repair. UNBSE rejects an address-library-dependent plugin when
+            the matching runtime table is absent, rather than executing
+            relocation-dependent code without its required data.
           </p>
         </div>
       </section>
