@@ -39,5 +39,6 @@ target_link_libraries(UNBSELoader PRIVATE advapi32 bcrypt psapi user32)
 
 if (MSVC)
     target_compile_options(UNBSELoader PRIVATE /Brepro /EHsc /permissive- /W4 /WX)
-    target_link_options(UNBSELoader PRIVATE /Brepro /DYNAMICBASE /HIGHENTROPYVA /NXCOMPAT)
+    target_link_options(UNBSELoader PRIVATE
+        /Brepro /PDBALTPATH:%_PDB% /DYNAMICBASE /HIGHENTROPYVA /NXCOMPAT)
 endif()

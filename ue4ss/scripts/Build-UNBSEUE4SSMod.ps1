@@ -331,6 +331,59 @@ foreach ($submodule in $manifest.upstream.submodules) {
 }
 
 New-Item -ItemType Directory -Path $build -Force | Out-Null
+$originalRustFlags = [Environment]::GetEnvironmentVariable('RUSTFLAGS', 'Process')
+$originalCargoEncodedRustFlags =
+    [Environment]::GetEnvironmentVariable('CARGO_ENCODED_RUSTFLAGS', 'Process')
+$rustupHome = [Environment]::GetEnvironmentVariable('RUSTUP_HOME', 'Process')
+if ([string]::IsNullOrWhiteSpace($rustupHome)) {
+    $rustupHome = Join-Path ([Environment]::GetFolderPath('UserProfile')) '.rustup'
+}
+
+function Assert-UNBSENoEmbeddedPrivatePath {
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][string]$DisplayName,
+        [Parameter(Mandatory)][string[]]$PrivatePrefixes
+    )
+
+    $image = [IO.File]::ReadAllBytes($Path)
+    $utf8Text = [Text.Encoding]::UTF8.GetString($image)
+    $utf16Text = [Text.Encoding]::Unicode.GetString($image)
+    foreach ($prefix in @($PrivatePrefixes | Where-Object {
+                -not [string]::IsNullOrWhiteSpace($_)
+            } | Sort-Object -Unique)) {
+        foreach ($candidate in @($prefix, $prefix.Replace('\', '/')) | Sort-Object -Unique) {
+            if ($utf8Text.IndexOf($candidate, [StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+                $utf16Text.IndexOf($candidate, [StringComparison]::OrdinalIgnoreCase) -ge 0) {
+                throw "$DisplayName contains a private build path."
+            }
+        }
+    }
+}
+$cargoHome = [Environment]::GetEnvironmentVariable('CARGO_HOME', 'Process')
+if ([string]::IsNullOrWhiteSpace($cargoHome)) {
+    $cargoHome = Join-Path ([Environment]::GetFolderPath('UserProfile')) '.cargo'
+}
+$rustPathRemaps = @(
+    "--remap-path-prefix=$source=ue4ss-source",
+    "--remap-path-prefix=$rustupHome=rustup",
+    "--remap-path-prefix=$cargoHome=cargo"
+)
+$privatePathPrefixes = @(
+    $repositoryRoot,
+    $source,
+    $build,
+    $interopBuild,
+    $loaderBuild,
+    $rustupHome,
+    $cargoHome,
+    [Environment]::GetFolderPath('UserProfile')
+)
+[Environment]::SetEnvironmentVariable('RUSTFLAGS', $null, 'Process')
+[Environment]::SetEnvironmentVariable(
+    'CARGO_ENCODED_RUSTFLAGS',
+    ($rustPathRemaps -join [char]0x1F),
+    'Process')
 try {
     Invoke-UNBSENative cmake @(
         '-S', $source,
@@ -363,6 +416,8 @@ try {
     )
     $hostArtifact = Assert-UNBSENoReparsePath (Get-UNBSEBuildCanonicalPath (
         Join-Path $build "$($manifest.unbseMod.buildConfiguration)\bin\UE4SS.dll") -MustExist)
+    Assert-UNBSENoEmbeddedPrivatePath -Path $hostArtifact `
+        -DisplayName 'Patched UE4SS host' -PrivatePrefixes $privatePathPrefixes
     Invoke-UNBSEArtifactSigning -Path $hostArtifact -DisplayName 'Patched UE4SS host'
     $hostHash = Get-UNBSEHash $hostArtifact
     $hostBytes = [long](Get-Item -LiteralPath $hostArtifact).Length
@@ -370,6 +425,9 @@ try {
     $hostWideText = [Text.Encoding]::Unicode.GetString($hostImage)
     if (-not $hostWideText.Contains('[UE4SS.CppModLifecycle]')) {
         throw 'Built UE4SS host does not contain the required lifecycle instrumentation marker.'
+    }
+    if (-not $hostWideText.Contains('[UNBSE] Legacy Lua ExecuteConsoleCommand call adapted')) {
+        throw 'Built UE4SS host does not contain the required legacy Lua console-command adapter.'
     }
     $hostImage = $null
     $hostWideText = $null
@@ -394,6 +452,11 @@ try {
     }
 }
 finally {
+    [Environment]::SetEnvironmentVariable('RUSTFLAGS', $originalRustFlags, 'Process')
+    [Environment]::SetEnvironmentVariable(
+        'CARGO_ENCODED_RUSTFLAGS',
+        $originalCargoEncodedRustFlags,
+        'Process')
     # Cargo 1.95 removes stale, unused packages from this pinned lock during the
     # build. Verify that exact mutation above, then leave the source patch-clean.
     [IO.File]::WriteAllBytes($cargoLock, $baseCargoLockBytes)
@@ -404,18 +467,25 @@ finally {
 
 $artifact = Join-Path $build "$($manifest.unbseMod.buildConfiguration)\bin\main.dll"
 $artifact = Assert-UNBSENoReparsePath (Get-UNBSEBuildCanonicalPath $artifact -MustExist)
+Assert-UNBSENoEmbeddedPrivatePath -Path $artifact `
+    -DisplayName 'UNBSE core module' -PrivatePrefixes $privatePathPrefixes
 Invoke-UNBSEArtifactSigning -Path $artifact -DisplayName 'UNBSE core module'
 $dllHash = Get-UNBSEHash $artifact
 $dllBytes = (Get-Item -LiteralPath $artifact).Length
 $interopArtifact = Join-Path $interopBuild "$($interop.buildConfiguration)\bin\main.dll"
 $interopArtifact = Assert-UNBSENoReparsePath `
     (Get-UNBSEBuildCanonicalPath $interopArtifact -MustExist)
+Assert-UNBSENoEmbeddedPrivatePath -Path $interopArtifact `
+    -DisplayName 'UNBSE OBSE64 interoperability module' `
+    -PrivatePrefixes $privatePathPrefixes
 Invoke-UNBSEArtifactSigning -Path $interopArtifact -DisplayName 'UNBSE OBSE64 interoperability module'
 $interopDllHash = Get-UNBSEHash $interopArtifact
 $interopDllBytes = (Get-Item -LiteralPath $interopArtifact).Length
 $loaderArtifact = Join-Path $loaderBuild "$($loader.buildConfiguration)\$($loader.packageExecutable)"
 $loaderArtifact = Assert-UNBSENoReparsePath `
     (Get-UNBSEBuildCanonicalPath $loaderArtifact -MustExist)
+Assert-UNBSENoEmbeddedPrivatePath -Path $loaderArtifact `
+    -DisplayName 'UNBSE launcher' -PrivatePrefixes $privatePathPrefixes
 Invoke-UNBSEArtifactSigning -Path $loaderArtifact -DisplayName 'UNBSE launcher'
 $loaderHash = Get-UNBSEHash $loaderArtifact
 $loaderBytes = (Get-Item -LiteralPath $loaderArtifact).Length
@@ -519,7 +589,10 @@ $packageManifest = [ordered]@{
         relativePath = 'ue4ss/UE4SS.dll'
         sha256 = $hostHash
         bytes = $hostBytes
-        requiredCapabilityMarkers = @('UE4SS.CppModLifecycle')
+        requiredCapabilityMarkers = @(
+            'UE4SS.CppModLifecycle',
+            '[UNBSE] Legacy Lua ExecuteConsoleCommand call adapted'
+        )
     }
     requiredExports = @($manifest.unbseMod.requiredExports)
     launcher = [ordered]@{
