@@ -5,7 +5,7 @@ param(
     [string]$OutputDirectory = (Join-Path $PSScriptRoot '..\..\release'),
     [string]$ManifestPath = (Join-Path $PSScriptRoot '..\foundation-manifest.json'),
     [string]$CompatibilityReviewPath =
-        (Join-Path $PSScriptRoot '..\..\release\UNBSE-0.14.2-mod-compatibility-review.csv')
+        (Join-Path $PSScriptRoot '..\..\release\UNBSE-0.14.5-mod-compatibility-review.csv')
 )
 
 Set-StrictMode -Version Latest
@@ -108,7 +108,7 @@ $foundationArchive = Assert-UNBSENoReparsePath $FoundationArchivePath
 $corePackage = Assert-UNBSENoReparsePath $CorePackageRoot
 $manifest = Get-Content -LiteralPath $manifestFile -Raw | ConvertFrom-Json
 $version = [string]$manifest.unbseMod.version
-if ($version -cne '0.14.2') {
+if ($version -cne '0.14.5') {
     throw "Unexpected release version: $version"
 }
 $compatibilityReview = Assert-UNBSENoReparsePath $CompatibilityReviewPath
@@ -150,6 +150,12 @@ try {
     Expand-Archive -LiteralPath $foundationArchive -DestinationPath $foundationStage -Force
 
     foreach ($artifact in $manifest.requiredRuntimeArtifacts) {
+        $packageIncluded =
+            -not ($artifact.PSObject.Properties.Name -contains 'packageIncluded') -or
+            [bool]$artifact.packageIncluded
+        if (-not $packageIncluded) {
+            continue
+        }
         $packageRelative = if ($artifact.PSObject.Properties.Name -contains
             'packageRelativePath') {
             [string]$artifact.packageRelativePath
@@ -182,7 +188,7 @@ try {
     Set-UNBSEDefaultIni `
         -Path $settingsPath `
         -DefaultSettings $defaultSettings
-    $settingsProfileMarker = '; UNBSE-Settings-Profile: 0.14.2'
+    $settingsProfileMarker = '; UNBSE-Settings-Profile: 0.14.5'
     $settingsLines = [IO.File]::ReadAllLines($settingsPath)
     if ($settingsLines -cnotcontains $settingsProfileMarker) {
         [IO.File]::WriteAllLines(
@@ -191,6 +197,12 @@ try {
             [Text.UTF8Encoding]::new($false))
     }
     foreach ($artifact in $manifest.requiredRuntimeArtifacts) {
+        $packageIncluded =
+            -not ($artifact.PSObject.Properties.Name -contains 'packageIncluded') -or
+            [bool]$artifact.packageIncluded
+        if (-not $packageIncluded) {
+            continue
+        }
         $packageRelative = if ($artifact.PSObject.Properties.Name -contains
             'packageRelativePath') {
             [string]$artifact.packageRelativePath
@@ -247,7 +259,7 @@ try {
             'docs/release-notes-0.13.0-rc.1.md',
             'docs/release-notes-0.13.5.md',
             'docs/release-notes-0.14.1.md',
-            'docs/release-notes-0.14.2.md',
+            'docs/release-notes-0.14.5.md',
             'ue4ss/foundation-manifest.json')
     ) | Sort-Object -Unique
     foreach ($relativePath in $sourcePaths) {

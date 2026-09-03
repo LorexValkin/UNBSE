@@ -1,0 +1,28 @@
+diff --git a/UE4SS/src/UE4SSProgram.cpp b/UE4SS/src/UE4SSProgram.cpp
+--- a/UE4SS/src/UE4SSProgram.cpp
++++ b/UE4SS/src/UE4SSProgram.cpp
+@@ -558,6 +558,25 @@ namespace RC
+                 freopen_s(&stdout_filename, "CONOUT$", "w", stdout);
+                 freopen_s(&stderr_filename, "CONOUT$", "w", stderr);
+             }
++
++            // QuickEdit lets a stray console click suspend writes to the input
++            // buffer. UE4SS logging can then stall a game thread until the
++            // selection is dismissed, so preserve every other input flag while
++            // explicitly disabling that mode for the console UE4SS owns.
++            const auto console_input = GetStdHandle(STD_INPUT_HANDLE);
++            if (console_input != nullptr && console_input != INVALID_HANDLE_VALUE)
++            {
++                DWORD console_mode{};
++                if (GetConsoleMode(console_input, &console_mode))
++                {
++                    console_mode |= ENABLE_EXTENDED_FLAGS;
++                    console_mode &= ~ENABLE_QUICK_EDIT_MODE;
++                    if (SetConsoleMode(console_input, console_mode))
++                    {
++                        Output::send(STR("[UNBSE] Console QuickEdit disabled to prevent selection stalls.\n"));
++                    }
++                }
++            }
+         }
+     }

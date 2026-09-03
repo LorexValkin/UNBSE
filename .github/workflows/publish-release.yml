@@ -1,9 +1,9 @@
-name: Publish UNBSE 0.14.1 prerelease
+name: Publish UNBSE 0.14.5 prerelease
 
 on:
   push:
     tags:
-      - v0.14.1
+      - v0.14.5
 
 permissions:
   contents: write
@@ -19,19 +19,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "${GITHUB_REF_NAME}" = "v0.14.1"
-          test "$(jq -r '.unbseMod.version' ue4ss/foundation-manifest.json)" = "0.14.1"
-          test -f docs/release-notes-0.14.1.md
-          test -f release/UNBSE-0.14.1.zip
-          test -f release/UNBSE-0.14.1-source.zip
-          test -f release/UNBSE-0.14.1-mod-compatibility-review.csv
-          test "$(wc -l < release/UNBSE-0.14.1-mod-compatibility-review.csv)" -eq 660
+          test "${GITHUB_REF_NAME}" = "v0.14.5"
+          test "$(jq -r '.unbseMod.version' ue4ss/foundation-manifest.json)" = "0.14.5"
+          test -f docs/release-notes-0.14.5.md
+          test -f release/UNBSE-0.14.5.zip
+          test -f release/UNBSE-0.14.5-source.zip
+          test -f release/UNBSE-0.14.5-mod-compatibility-review.csv
+          test "$(wc -l < release/UNBSE-0.14.5-mod-compatibility-review.csv)" -eq 660
           test -f release/SHA256SUMS.txt
           (
             cd release
             sha256sum --check SHA256SUMS.txt
-            unzip -tq UNBSE-0.14.1.zip
-            unzip -tq UNBSE-0.14.1-source.zip
+            unzip -tq UNBSE-0.14.5.zip
+            unzip -tq UNBSE-0.14.5-source.zip
           )
 
       - name: Publish GitHub prerelease
@@ -41,13 +41,13 @@ jobs:
         run: |
           set -euo pipefail
           gh release create "${GITHUB_REF_NAME}" \
-            release/UNBSE-0.14.1.zip \
-            release/UNBSE-0.14.1-source.zip \
-            release/UNBSE-0.14.1-mod-compatibility-review.csv \
+            release/UNBSE-0.14.5.zip \
+            release/UNBSE-0.14.5-source.zip \
+            release/UNBSE-0.14.5-mod-compatibility-review.csv \
             release/SHA256SUMS.txt \
             --repo "${GITHUB_REPOSITORY}" \
             --target "${GITHUB_SHA}" \
-            --title "UNBSE 0.14.1" \
-            --notes-file docs/release-notes-0.14.1.md \
+            --title "UNBSE 0.14.5" \
+            --notes-file docs/release-notes-0.14.5.md \
             --prerelease \
             --verify-tag

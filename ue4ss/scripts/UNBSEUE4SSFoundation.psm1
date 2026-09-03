@@ -154,11 +154,24 @@ function Get-UNBSEFoundationAudit {
         } else { [long]$artifact.bytes }
         $sourceFile=Join-Path $source $sourceRelative; $targetFile=Join-Path $game $targetRelative
         $err=Test-UNBSEExactFile $sourceFile $artifact.sha256 ([long]$artifact.bytes) "Source artifact $($artifact.relativePath)"; if ($err) {$errors.Add($err)}
+        $packageIncluded =
+            -not ($artifact.PSObject.Properties.Name -contains 'packageIncluded') -or
+            [bool]$artifact.packageIncluded
         $targetManagedByCorePackage =
             $artifact.PSObject.Properties.Name -contains 'targetManagedByCorePackage' -and
             [bool]$artifact.targetManagedByCorePackage
-        if (-not $targetManagedByCorePackage) {
+        if (-not $packageIncluded) {
+            if (Test-Path -LiteralPath $targetFile) {
+                $errors.Add("Excluded UE4SS proxy loader remains installed: $targetFile")
+            }
+        } elseif (-not $targetManagedByCorePackage) {
             $err=Test-UNBSEExactFile $targetFile $targetSha256 $targetBytes "Target artifact $targetRelative"; if ($err) {$errors.Add($err)}
+        }
+    }
+    foreach ($renamedProxy in 'ue4ss_loader.dll', 'ue4ss_dwmapi.dll') {
+        $renamedProxyPath = Join-Path $game $renamedProxy
+        if (Test-Path -LiteralPath $renamedProxyPath) {
+            $errors.Add("Renamed UE4SS proxy loader remains installed: $renamedProxyPath")
         }
     }
     $ini=ConvertFrom-UNBSEIni (Join-Path $game 'ue4ss/UE4SS-settings.ini') $required

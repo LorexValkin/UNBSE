@@ -1,0 +1,28 @@
+diff --git a/UE4SS/src/Mod/LuaMod.cpp b/UE4SS/src/Mod/LuaMod.cpp
+--- a/UE4SS/src/Mod/LuaMod.cpp
++++ b/UE4SS/src/Mod/LuaMod.cpp
+@@ -3701,8 +3701,11 @@ Overloads:
+             }
+ 
+             LuaMod::m_is_currently_executing_game_action = true;
+-            lua_data.lua->registry().get_function_ref(lua_data.lua_action_function_ref);
++            // The registry lookup must stay inside TRY: an exception escaping this
++            // drain unwinds into the shared engine-tick detour, which removes the
++            // Lua tick callback and silently kills every mod's queued actions.
+             TRY([&]() {
++                lua_data.lua->registry().get_function_ref(lua_data.lua_action_function_ref);
+                 lua_data.lua->call_function(0, 0);
+             });
+             luaL_unref(lua_data.lua->get_lua_state(), LUA_REGISTRYINDEX, lua_data.lua_action_function_ref);
+@@ -3910,8 +3913,10 @@ Overloads:
+             }
+ 
+             LuaMod::m_is_currently_executing_game_action = true;
+-            exec.lua->registry().get_function_ref(exec.lua_action_function_ref);
++            // Same containment as the simple-action drain: a broken function ref
++            // must fail this one action, not unwind into the engine-tick detour.
+             TRY([&]() {
++                exec.lua->registry().get_function_ref(exec.lua_action_function_ref);
+                 exec.lua->call_function(0, 0);
+             });
+             LuaMod::m_is_currently_executing_game_action = false;

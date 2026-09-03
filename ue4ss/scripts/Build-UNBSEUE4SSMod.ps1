@@ -429,6 +429,9 @@ try {
     if (-not $hostWideText.Contains('[UNBSE] Legacy Lua ExecuteConsoleCommand call adapted')) {
         throw 'Built UE4SS host does not contain the required legacy Lua console-command adapter.'
     }
+    if (-not $hostWideText.Contains('[UNBSE] Console QuickEdit disabled to prevent selection stalls.')) {
+        throw 'Built UE4SS host does not contain the required console QuickEdit safeguard.'
+    }
     $hostImage = $null
     $hostWideText = $null
     New-Item -ItemType Directory -Path $loaderBuild -Force | Out-Null
@@ -591,7 +594,8 @@ $packageManifest = [ordered]@{
         bytes = $hostBytes
         requiredCapabilityMarkers = @(
             'UE4SS.CppModLifecycle',
-            '[UNBSE] Legacy Lua ExecuteConsoleCommand call adapted'
+            '[UNBSE] Legacy Lua ExecuteConsoleCommand call adapted',
+            '[UNBSE] Console QuickEdit disabled to prevent selection stalls.'
         )
     }
     requiredExports = @($manifest.unbseMod.requiredExports)

@@ -1,7 +1,7 @@
 {
   "schema": "UNBSEUE4SSFoundation",
   "schemaVersion": 1,
-  "foundationId": "ue4ss-3.0.1-beta0-68dd45cb-unbse-patchset-v1-mod-0.14.2",
+  "foundationId": "ue4ss-3.0.1-beta0-68dd45cb-unbse-patchset-v1-mod-0.14.5",
   "upstream": {
     "repository": "https://github.com/UE4SS-RE/RE-UE4SS.git",
     "commit": "68dd45cb5630bd7745310c6630b19c14345176a2",
@@ -30,7 +30,8 @@
     {
       "relativePath": "dwmapi.dll",
       "sha256": "02822565CF0E4CC607BADB6F17F3F6C4D37A4B6ED05849D98CD18C6C685183B5",
-      "bytes": 71680
+      "bytes": 71680,
+      "packageIncluded": false
     },
     {
       "relativePath": "ue4ss/UE4SS.dll",
@@ -170,12 +171,28 @@
         "expectedChangedPaths": [
           "UE4SS/src/LuaType/LuaUObject.cpp"
         ]
+      },
+      {
+        "relativePath": "ue4ss/patches/0009-disable-console-quick-edit.patch",
+        "sha256": "C9C5A26836A3C2DCE0FE1843D70005B4D20F17B7B412AC518C316512AF231F63",
+        "purpose": "Disable QuickEdit on the UE4SS-owned Windows console so accidental selection cannot block console writes and stall the game process.",
+        "expectedChangedPaths": [
+          "UE4SS/src/UE4SSProgram.cpp"
+        ]
+      },
+      {
+        "relativePath": "ue4ss/patches/0010-contain-lua-engine-tick-action-errors.patch",
+        "sha256": "75890F311995975FF25D52A6FBB6878CC4F0FADD515AB558834BD77E660670E2",
+        "purpose": "Keep the Lua registry function-ref lookup inside the per-action exception guard on both game-thread action drains, so one mod's broken callback ref fails only that action instead of unwinding into the shared engine-tick detour, which removes the Lua tick callback and kills every mod's queued actions and loops.",
+        "expectedChangedPaths": [
+          "UE4SS/src/Mod/LuaMod.cpp"
+        ]
       }
     ]
   },
   "unbseMod": {
     "name": "UNBSE",
-    "version": "0.14.2",
+    "version": "0.14.5",
     "target": "UNBSEMod",
     "buildConfiguration": "Game__Shipping__Win64",
     "packageDll": "ue4ss/Mods/UNBSE/dlls/main.dll",
@@ -223,7 +240,7 @@
       },
       {
         "relativePath": "ue4ss/loader/src/main.cpp",
-        "sha256": "8E094A18628E09E7077279981B52B763DC5F34D3022696DB16B1B267F08F0825"
+        "sha256": "427A6167C8181E5168A04ACA8C74409CBB4644691CA593479E9CA7F56829B54F"
       },
       {
         "relativePath": "ue4ss/loader/src/UNBSEAssetPreflight.cpp",
@@ -275,7 +292,7 @@
       },
       {
         "relativePath": "ue4ss/scripts/Build-UNBSEUE4SSMod.ps1",
-        "sha256": "1F596D65412A9B154D023E288862EC9E001448BFA32D5AA7346DE26EF1BF5EC3"
+        "sha256": "CF1C48F8DEA317DE395A553B4723ACC325DE4082BF92E835C036A91CA74835BB"
       },
       {
         "relativePath": "ue4ss/scripts/Install-UNBSEUE4SSMod.ps1",
@@ -283,7 +300,7 @@
       },
       {
         "relativePath": "ue4ss/scripts/Package-UNBSERelease.ps1",
-        "sha256": "5741B64DAB98AB33DB7CDC6831E4225374289883F16B565DE1EA05705EAEF5BD"
+        "sha256": "424D2B11ED6B1E410FCEA8EF6FFF032274EA6DE7AD52D96DFD229CE820DDC358"
       },
       {
         "relativePath": "ue4ss/scripts/Set-UNBSECoreManifestBoundary.ps1",
@@ -291,11 +308,11 @@
       },
       {
         "relativePath": "ue4ss/scripts/UNBSEUE4SSFoundation.psm1",
-        "sha256": "8567517A9FF21C45CD568EC48F41E55DB4E1A5EB25765D7422677A3C06503533"
+        "sha256": "01787C3881352A5A30C3E05DFDC2D69F88C03DBDFEEA15893806304F9B9771BB"
       },
       {
         "relativePath": "ue4ss/scripts/UNBSEUE4SSMod.psm1",
-        "sha256": "B96599EDE8E369BB9776B901BAB69390A97D59887C19DDD184E0A2E3F65066C2"
+        "sha256": "81CD4945B95055752A6EF7B0D03C61F460F2245D11CD1ED1B9D0752F94E7B80E"
       },
       {
         "relativePath": "ue4ss/scripts/Update-UNBSESourceFilePins.ps1",

@@ -47,10 +47,10 @@ namespace
     constexpr std::wstring_view ExpectedUE4SSSha256 =
             UNBSE_WIDEN_LITERAL(UNBSE_EXPECTED_UE4SS_SHA256);
     constexpr std::uintmax_t ExpectedUE4SSBytes = UNBSE_EXPECTED_UE4SS_BYTES;
-    constexpr std::wstring_view ExpectedProxySha256 =
-            L"02822565CF0E4CC607BADB6F17F3F6C4D37A4B6ED05849D98CD18C6C685183B5";
+    constexpr std::array<std::wstring_view, 3> ConflictingUE4SSLoaderNames{
+            L"dwmapi.dll", L"ue4ss_loader.dll", L"ue4ss_dwmapi.dll"};
     constexpr std::string_view SettingsProfileMarker =
-            "; UNBSE-Settings-Profile: 0.14.2";
+            "; UNBSE-Settings-Profile: 0.14.5";
 
     enum class EIniSettingPolicy
     {
@@ -1022,7 +1022,7 @@ namespace
             return true;
         }
 
-        std::wcerr << L"ERROR: UE4SS-settings.ini is not UNBSE 0.14.2 compliant:\n";
+        std::wcerr << L"ERROR: UE4SS-settings.ini is not UNBSE 0.14.5 compliant:\n";
         for (const auto& Issue : Review.Issues)
         {
             std::wcerr << L"  - " << Utf8ToWide(Issue) << L"\n";
@@ -1035,7 +1035,7 @@ namespace
         }
 
         std::wostringstream Prompt{};
-        Prompt << L"UE4SS-settings.ini is not compatible with UNBSE 0.14.2.\n\n";
+        Prompt << L"UE4SS-settings.ini is not compatible with UNBSE 0.14.5.\n\n";
         constexpr std::size_t MaximumDisplayedIssues = 15;
         const auto Displayed = std::min(Review.Issues.size(), MaximumDisplayedIssues);
         for (std::size_t Index = 0; Index < Displayed; ++Index)
@@ -2031,14 +2031,21 @@ auto wmain(const int ArgumentCount, wchar_t** Arguments) -> int
                           L"build; continuing as an unverified attempt.\n";
         }
 
-        const auto Proxy = GameDirectory / L"dwmapi.dll";
         std::error_code Error{};
-        if (fs::is_regular_file(Proxy, Error) && Sha256File(Proxy) != ExpectedProxySha256)
+        for (const auto LoaderName : ConflictingUE4SSLoaderNames)
         {
-            std::wcerr
-                    << L"ERROR: A foreign dwmapi.dll is installed beside the game. Remove the "
-                       L"separate UE4SS/loader package before using UNBSELoader.\n";
-            return 4;
+            Error.clear();
+            const auto ConflictingLoader = GameDirectory / LoaderName;
+            if (fs::is_regular_file(ConflictingLoader, Error))
+            {
+                std::wcerr
+                        << L"ERROR: A conflicting UE4SS proxy loader is installed beside the game: "
+                        << ConflictingLoader
+                        << L"\nRemove it and any Mod Organizer 2 force-load entry. "
+                           L"UNBSELoader loads its pinned UE4SS.dll only after the manager VFS "
+                           L"is initialized.\n";
+                return 4;
+            }
         }
 
         std::wcout << L"UNBSE loader: " << SelfPath << L"\n"

@@ -1,5 +1,5 @@
 {
-  "unbseVersion": "0.14.2",
+  "unbseVersion": "0.14.5",
   "releaseChannel": "release-candidate",
   "validationStatus": "in-game-testing-required",
   "supportedGame": {
@@ -16,7 +16,7 @@
     "ue4ssDistribution": "bundled pinned runtime",
     "ue4ssVersion": "3.0.1 Beta #0",
     "ue4ssCommit": "68dd45cb5630bd7745310c6630b19c14345176a2",
-    "foundationId": "ue4ss-3.0.1-beta0-68dd45cb-unbse-patchset-v1-mod-0.14.2"
+    "foundationId": "ue4ss-3.0.1-beta0-68dd45cb-unbse-patchset-v1-mod-0.14.5"
   },
   "sdk": {
     "apiVersion": "v1",
