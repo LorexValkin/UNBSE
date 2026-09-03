@@ -1,7 +1,7 @@
 diff --git a/UE4SS/src/UE4SSProgram.cpp b/UE4SS/src/UE4SSProgram.cpp
 --- a/UE4SS/src/UE4SSProgram.cpp
 +++ b/UE4SS/src/UE4SSProgram.cpp
-@@ -558,6 +558,25 @@ namespace RC
+@@ -558,5 +558,24 @@ namespace RC
                  freopen_s(&stdout_filename, "CONOUT$", "w", stdout);
                  freopen_s(&stderr_filename, "CONOUT$", "w", stderr);
              }

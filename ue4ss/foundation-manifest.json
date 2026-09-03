@@ -174,7 +174,7 @@
       },
       {
         "relativePath": "ue4ss/patches/0009-disable-console-quick-edit.patch",
-        "sha256": "C9C5A26836A3C2DCE0FE1843D70005B4D20F17B7B412AC518C316512AF231F63",
+        "sha256": "1FDC96FFA8EF6B80D1A74C9D4E77458F5CFC3262051BE2B126016C5B246CA402",
         "purpose": "Disable QuickEdit on the UE4SS-owned Windows console so accidental selection cannot block console writes and stall the game process.",
         "expectedChangedPaths": [
           "UE4SS/src/UE4SSProgram.cpp"
